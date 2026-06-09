@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import { type UserProfile } from '../types';
 
@@ -23,15 +23,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         setCurrentUser(user);
         try {
-          // جلب بيانات البروفايل الخاصة بهذا المستخدم فقط بناءً على الـ UID
-          const docRef = doc(db, "users", user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
-          } else {
-            setUserProfile(null);
+          let profileData = null;
+
+          // 1. محاولة جلب البيانات بالإيميل (للدخول بالبريد)
+          if (user.email) {
+            const docRef = doc(db, "users", user.email);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              profileData = docSnap.data() as UserProfile;
+            }
           }
+
+          // 2. إذا لم يجد الإيميل، يبحث برقم الجوال (للدخول بالهاتف)
+          if (!profileData && user.phoneNumber) {
+            const q = query(collection(db, "users"), where("phone", "==", user.phoneNumber));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+              profileData = querySnapshot.docs[0].data() as UserProfile;
+            }
+          }
+
+          setUserProfile(profileData);
         } catch (error) {
           console.error("خطأ في جلب بيانات المستخدم:", error);
           setUserProfile(null);

@@ -19,7 +19,6 @@ export const App: React.FC = () => {
     return <div className="flex h-screen items-center justify-center bg-[#0a0a0a] text-white">جاري الفحص الأمني والتحميل...</div>;
   }
 
-  // إذا كان الحساب معلقاً قيد مراجعة الإدارة العليا
   if (currentUser && isPending) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] text-white" dir="rtl">
@@ -46,7 +45,7 @@ export const App: React.FC = () => {
         <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <AuthPage />} />
         
         <Route path="/" element={currentUser ? <Layout /> : <Navigate to="/login" />}>
-          {/* تم إضافة هذا السطر لحل مشكلة الصفحة البيضاء */}
+          {/* توجيه افتراضي لتجنب الصفحة الفارغة */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           
           <Route path="dashboard" element={<CalendarPage />} />
@@ -55,7 +54,6 @@ export const App: React.FC = () => {
           <Route path="chat" element={<ChatPage />} />
           <Route path="profile" element={<ProfilePage />} />
           
-          {/* حماية لوحة التحكم: يراها فقط رئيس مجلس الإدارة والنائب */}
           <Route 
             path="admin" 
             element={userProfile && (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') ? <AdminDashboard /> : <Navigate to="/dashboard" />} 
