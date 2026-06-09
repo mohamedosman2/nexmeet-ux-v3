@@ -8,7 +8,6 @@ import {
 } from 'firebase/auth';
 import { FaEnvelope, FaLock } from 'react-icons/fa';
 
-// حل مشكلة Typescript مع نافذة المتصفح للكابتشا
 declare global {
   interface Window {
     recaptchaVerifier: any;
@@ -44,15 +43,23 @@ export const AuthPage: React.FC = () => {
 
   const handlePhoneLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMessage({ type: '', text: '' });
+    
+    if (!phone.startsWith('+')) {
+      setMessage({ type: 'error', text: 'يجب كتابة رقم الجوال بالصيغة الدولية الكاملة مثل +9665xxxxxxxx' });
+      return;
+    }
+
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
     }
+    
     try {
       const confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
       const code = window.prompt('أدخل كود التوثيق المرسل لجوالك:');
       if (code) await confirmationResult.confirm(code);
     } catch (error: any) {
-      setMessage({ type: 'error', text: `خطأ: ${error.code}` });
+      setMessage({ type: 'error', text: `خطأ أثناء التحقق من الجوال: ${error.code}` });
     }
   };
 
@@ -104,7 +111,8 @@ export const AuthPage: React.FC = () => {
 
         {view === 'phone' && (
           <form onSubmit={handlePhoneLogin}>
-            <input type="tel" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4 mb-4" placeholder="+966..." value={phone} onChange={(e) => setPhone(e.target.value)} />
+            {/* تم هنا تعديل دالة الإدخال لتعمل مع رقم الهاتف بشكل سليم وصحيح بدلاً من الإيميل */}
+            <input type="tel" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4 mb-4" placeholder="+9665xxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <div id="recaptcha-container"></div>
             <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg mb-2">إرسال كود التوثيق</button>
             <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-xs">العودة</button>
