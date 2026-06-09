@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
-import { type UserProfile } from '../types';
+// تم إضافة type Role هنا لحل مشكلة Netlify
+import { type UserProfile, type Role } from '../types';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -13,8 +14,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-// السجلات القيادية المعتمدة للنظام ليتم إنشاؤها تلقائياً عند غيابها من السحابة
-const predefinedUsers: Record<string, { name: string; department: string; primaryRole: string; additionalTitles: string[]; phone: string }> = {
+// تم تغيير نوع primaryRole من string إلى Role
+const predefinedUsers: Record<string, { name: string; department: string; primaryRole: Role; additionalTitles: string[]; phone: string }> = {
   "mohd@uexperts.sa": {
     name: "محمد آل نصار (أبو نواف)",
     department: "الإدارة العليا",
@@ -64,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             profileData = uidSnap.data() as UserProfile;
           }
 
-          // 2. محاولة جلب البيانات بمعرف البريد الإلكتروني للمستند (دعم التوافق القديم)
+          // 2. محاولة جلب البيانات بمعرف البريد الإلكتروني للمستند
           if (!profileData && user.email) {
             const emailRef = doc(db, "users", user.email.toLowerCase());
             const emailSnap = await getDoc(emailRef);
@@ -73,7 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // 3. البحث الشامل بالاستعلام عن الحقول في حال اختلاف المعرفات
+          // 3. البحث الشامل بالاستعلام
           if (!profileData) {
             const usersRef = collection(db, "users");
             let q = query(usersRef, where("email", "==", user.email?.toLowerCase() || ""));
@@ -89,11 +90,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
 
-          // 4. آلية الإصلاح الذاتي (Self-Healing) إذا لم يجد البروفايل نهائياً في الفايرستور
+          // 4. آلية الإصلاح الذاتي (Self-Healing)
           if (!profileData) {
             let matchedEmail = user.email?.toLowerCase();
             
-            // إذا دخل برقم الهاتف، نقوم بمطابقة رقم الهاتف مع الحسابات المعتمدة لديه
             if (!matchedEmail && user.phoneNumber) {
               matchedEmail = Object.keys(predefinedUsers).find(
                 email => predefinedUsers[email].phone === user.phoneNumber
@@ -113,14 +113,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 phone: defaultData.phone
               };
 
-              // كتابة البروفايل تحت معرف الـ UID والإيميل معاً لضمان عدم حدوث تعارض مستقبلي
               await setDoc(doc(db, "users", user.uid), newProfile);
               await setDoc(doc(db, "users", matchedEmail), newProfile);
               profileData = newProfile;
               console.log("تم تفعيل نظام الإصلاح الذاتي وبناء البروفايل بنجاح للحساب:", matchedEmail);
             }
           } else {
-            // ربط وتحديث الـ UID الحقيقي داخل المستند لضمان اتصاله بـ Auth بشكل دائم
             if (profileData.uid !== user.uid) {
               profileData.uid = user.uid;
               await setDoc(doc(db, "users", user.uid), profileData);
