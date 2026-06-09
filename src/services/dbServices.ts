@@ -1,6 +1,6 @@
 import { db } from '../config/firebase';
-import { collection, addDoc, query, where, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { Task } from '../types';
+import { collection, addDoc, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import type { Task } from '../types';
 
 // 1. إنشاء مهمة جديدة ورفعها للسحابة
 export const createCloudTask = async (taskData: Omit<Task, 'id'>) => {

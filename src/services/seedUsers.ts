@@ -1,6 +1,6 @@
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../config/firebase";
-import { UserProfile } from "../types";
+import type { UserProfile } from "../types";
 
 export const seedInitialUsers = async () => {
   const users: UserProfile[] = [

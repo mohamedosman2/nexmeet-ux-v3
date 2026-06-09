@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { FaCheck, FaTimes, FaUserTie, FaKey, FaTrash, FaPlus } from 'react-icons/fa';
-import { useAuth } from '../contexts/AuthContext';
+import { FaCheck, FaTimes, FaUserTie, FaKey, FaTrash } from 'react-icons/fa';
 
 export const AdminDashboard: React.FC = () => {
-  const { userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'depts'>('users');
 
   // بيانات وهمية للإدارة يتم تعويضها بـ Firestore لاحقاً
-  const [pendingApprovals, setPendingApprovals] = useState([
+  const [pendingApprovals] = useState([
     { id: 'app1', name: 'أحمد التميمي', email: 'a.tamimi@uexperts.sa', department: 'التكنولوجيا' }
   ]);
 

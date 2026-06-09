@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 export const MeetingsPage: React.FC = () => {
   const { userProfile } = useAuth();
-  const [meetings, setMeetings] = useState<any[]>([
+  const [meetings] = useState<any[]>([
     {
       id: 'm1', title: 'اجتماع الإدارة العليا الدوري', date: '2026-06-12', time: '16:00',
       type: 'online', platform: 'zoom', customLink: 'https://zoom.us/join',
