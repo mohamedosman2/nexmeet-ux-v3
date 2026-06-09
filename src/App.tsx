@@ -46,6 +46,9 @@ export const App: React.FC = () => {
         <Route path="/login" element={currentUser ? <Navigate to="/dashboard" /> : <AuthPage />} />
         
         <Route path="/" element={currentUser ? <Layout /> : <Navigate to="/login" />}>
+          {/* تم إضافة هذا السطر لحل مشكلة الصفحة البيضاء */}
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          
           <Route path="dashboard" element={<CalendarPage />} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="meetings" element={<MeetingsPage />} />
