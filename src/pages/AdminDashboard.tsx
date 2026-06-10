@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FaCheck, FaTimes, FaUserTie, FaKey, FaTrash, FaUserShield } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaUserTie, FaTrash, FaUserShield } from 'react-icons/fa';
 import { db } from '../config/firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
 import type { UserProfile, Role } from '../types';
 
 export const AdminDashboard: React.FC = () => {
-  const { userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'approvals'>('users');
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);

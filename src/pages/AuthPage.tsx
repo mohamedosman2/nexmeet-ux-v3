@@ -21,7 +21,7 @@ export const AuthPage: React.FC = () => {
       if (emailForSignIn) {
         signInWithEmailLink(auth, emailForSignIn, window.location.href)
           .then(() => window.localStorage.removeItem('emailForSignIn'))
-          .catch((error) => setMessage({ type: 'error', text: 'خطأ في الرابط أو منتهي الصلاحية.' }));
+          .catch(() => setMessage({ type: 'error', text: 'خطأ في الرابط أو منتهي الصلاحية.' }));
       }
     }
   }, []);
