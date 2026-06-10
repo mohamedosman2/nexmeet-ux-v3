@@ -1,28 +1,21 @@
-// ==========================================
-// صفحة الملف الشخصي (Profile Page)
-// تتضمن تعديل البيانات الشخصية، رفع الصورة، وتغيير كلمة المرور
-// ==========================================
 import React, { useState, useEffect } from 'react';
-import { FaSave, FaKey, FaUserCircle } from 'react-icons/fa';
+import { FaSave, FaKey } from 'react-icons/fa';
 import { updatePassword } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 export const ProfilePage: React.FC = () => {
   const { userProfile, currentUser } = useAuth();
   
-  // حالات البيانات الشخصية
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState('');
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
 
-  // حالات كلمة المرور
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   
-  // رسائل النظام
   const [profileMsg, setProfileMsg] = useState({ type: '', text: '' });
   const [passMsg, setPassMsg] = useState({ type: '', text: '' });
 
@@ -99,14 +92,12 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // ترجمة الصلاحية وعرضها
   const roleDisplay = userProfile?.primaryRole === 'chairman' ? 'رئيس مجلس الإدارة' : 
                       userProfile?.primaryRole === 'vp' ? 'نائب رئيس' : 
                       userProfile?.primaryRole === 'manager' ? 'مدير' : 'موظف';
 
   return (
     <div className="animate-fadeIn max-w-2xl mx-auto">
-      {/* قسم البيانات الأساسية والصورة */}
       <div className="cd mb-5">
         <div className="flex flex-col md:flex-row items-center gap-6 mb-8 border-b border-[#1f1f1f] pb-6">
           <div className="relative group cursor-pointer">
@@ -165,7 +156,6 @@ export const ProfilePage: React.FC = () => {
         </button>
       </div>
 
-      {/* قسم تغيير كلمة المرور */}
       <div className="cd">
         <h3 className="font-bold mb-5 flex items-center gap-2 text-white">
           <FaKey className="text-[#A52A2A]" /> تغيير كلمة المرور السحابية

@@ -1,7 +1,3 @@
-// ==========================================
-// صفحة لوحة التحكم (Admin Dashboard)
-// مخصصة للقيادات العليا لإدارة المستخدمين، الإدارات، والفروع
-// ==========================================
 import React, { useState, useEffect } from 'react';
 import { 
   FaCheck, FaTimes, FaUserTie, FaKey, FaTrash, 
@@ -9,7 +5,7 @@ import {
 } from 'react-icons/fa';
 import { db, auth } from '../config/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserProfile, Role, Department, Region } from '../types';
 
@@ -17,13 +13,11 @@ export const AdminDashboard: React.FC = () => {
   const { userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'depts' | 'branches'>('users');
   
-  // قواعد البيانات
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // جلب البيانات السحابية
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const users: UserProfile[] = [];
@@ -57,18 +51,12 @@ export const AdminDashboard: React.FC = () => {
   const pendingApprovals = usersList.filter(u => !u.isActive);
   const activeUsers = usersList.filter(u => u.isActive);
 
-  // ==========================================
-  // نظام الحماية القصوى للقيادات
-  // ==========================================
   const isProtectedAccount = (email: string) => {
     if (!email) return false;
     const protectedEmails = ['mohd@uexperts.sa', 'm.othman@uexperts.sa', 'ali@uexperts.sa'];
     return protectedEmails.includes(email.toLowerCase());
   };
 
-  // ==========================================
-  // إدارة المستخدمين والطلبات
-  // ==========================================
   const handleApproveUser = async (user: UserProfile) => {
     try {
       await updateDoc(doc(db, 'users', user.uid), { isActive: true });
@@ -147,9 +135,6 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  // ==========================================
-  // إدارة الإدارات والفروع
-  // ==========================================
   const handleAddDept = async () => {
     const name = prompt('أدخل اسم الإدارة الجديدة:');
     if (name) {
@@ -193,7 +178,6 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* التبويبات */}
       <div className="flex gap-2 mb-6 flex-wrap border-b border-[#1f1f1f] pb-4">
         <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-lg text-xs font-bold ${activeTab === 'users' ? 'bg-[#8B1A1A] text-white' : 'bg-[#111] text-gray-400 hover:bg-[#151515]'}`}>
           المستخدمين الحاليين ({activeUsers.length})
@@ -214,7 +198,6 @@ export const AdminDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* 1. تبويب المستخدمين */}
       {activeTab === 'users' && (
         <div className="bg-[#151515] border border-[#1f1f1f] rounded-xl overflow-x-auto">
           <table className="w-full text-sm text-right">
@@ -255,7 +238,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 2. تبويب طلبات الانضمام */}
       {activeTab === 'approvals' && (
         <div className="grid gap-3">
           {pendingApprovals.length === 0 ? (
@@ -277,7 +259,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 3. تبويب الإدارات */}
       {activeTab === 'depts' && userProfile?.primaryRole === 'chairman' && (
         <div>
           <div className="flex justify-between items-center mb-4">
@@ -296,7 +277,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* 4. تبويب الفروع */}
       {activeTab === 'branches' && userProfile?.primaryRole === 'chairman' && (
         <div>
           <div className="flex justify-between items-center mb-4">

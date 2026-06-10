@@ -1,18 +1,13 @@
-// ==========================================
-// صفحة الاجتماعات (Meetings Page)
-// تتضمن جدولة الاجتماعات الحضورية وعن بُعد، مع خريطة الفروع والقاعات
-// ==========================================
 import React, { useState, useEffect } from 'react';
 import { 
   FaPlus, FaVideo, FaMapMarkerAlt, FaExternalLinkAlt, 
-  FaTrash, FaTimes, FaCalendar, FaClock, FaGlobe, FaUser
+  FaTimes, FaCalendar, FaClock, FaGlobe, FaUser
 } from 'react-icons/fa';
 import { db } from '../config/firebase';
 import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { Meeting, UserProfile } from '../types';
 
-// خريطة مناطق وفروع وقاعات الشركة (مطابقة لكودك الأصلي تماماً)
 const BRANCHES_DATA = [
   { id: 'b1', rg: 'المنطقة الوسطى', br: [
       { id: 'br1', nm: 'فرع الحمرا (اليرموك)', rm: ['القاعة الرئيسية', 'تدريب 1', 'تدريب 2'] },
@@ -36,13 +31,11 @@ const PLATFORM_LINKS: Record<string, string> = {
 export const MeetingsPage: React.FC = () => {
   const { userProfile } = useAuth();
   
-  // الحالات الأساسية (State)
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // حقول نموذج الإضافة
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('10:00');
@@ -50,18 +43,15 @@ export const MeetingsPage: React.FC = () => {
   const [platform, setPlatform] = useState('zoom');
   const [customLink, setCustomLink] = useState('');
   
-  // حقول الفروع
   const [region, setRegion] = useState(BRANCHES_DATA[0].rg);
   const [branch, setBranch] = useState(BRANCHES_DATA[0].br[0].id);
   const [room, setRoom] = useState(BRANCHES_DATA[0].br[0].rm[0]);
   
-  // حقول المشاركين
   const [attendees, setAttendees] = useState<string[]>([]);
   const [attendeeQuery, setAssigneeQuery] = useState('');
   const [showAssigneeDrop, setShowAssigneeDrop] = useState(false);
   const [notes, setNotes] = useState('');
 
-  // جلب البيانات من السحابة في الوقت الفعلي
   useEffect(() => {
     const unsubMeetings = onSnapshot(collection(db, 'meetings'), (snapshot) => {
       const fetchedMeetings: Meeting[] = [];
@@ -79,7 +69,6 @@ export const MeetingsPage: React.FC = () => {
     return () => { unsubMeetings(); unsubUsers(); };
   }, []);
 
-  // تحديث القوائم المنسدلة للفروع والقاعات عند تغيير المنطقة
   useEffect(() => {
     const selectedRegion = BRANCHES_DATA.find(r => r.rg === region);
     if (selectedRegion && selectedRegion.br.length > 0) {
@@ -96,7 +85,6 @@ export const MeetingsPage: React.FC = () => {
     }
   }, [branch, region]);
 
-  // التحقق من صلاحية رؤية الاجتماع (نفس القواعد القديمة)
   const canSeeMeeting = (meeting: Meeting) => {
     if (!userProfile) return false;
     if (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') return true;
@@ -107,7 +95,6 @@ export const MeetingsPage: React.FC = () => {
 
   const visibleMeetings = meetings.filter(canSeeMeeting).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
-  // فتح نافذة الإضافة
   const openModal = () => {
     setTitle('');
     setDate(new Date().toISOString().split('T')[0]);
@@ -120,7 +107,6 @@ export const MeetingsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // حفظ الاجتماع سحابياً
   const handleSaveMeeting = async () => {
     if (!title || !date || !time) {
       alert('يرجى ملء الحقول الأساسية (العنوان، التاريخ، الوقت)');
@@ -154,7 +140,6 @@ export const MeetingsPage: React.FC = () => {
     }
   };
 
-  // حذف الاجتماع
   const handleDeleteMeeting = async (id: string) => {
     if (confirm('هل أنت متأكد من إلغاء وحذف هذا الاجتماع؟')) {
       try {
@@ -167,7 +152,6 @@ export const MeetingsPage: React.FC = () => {
 
   const getUserInfo = (uid: string) => users.find(u => u.uid === uid);
 
-  // دالة لجلب اسم الفرع من المعرف
   const getBranchName = (regionName: string, branchId: string) => {
     const r = BRANCHES_DATA.find(x => x.rg === regionName);
     const b = r?.br.find(x => x.id === branchId);
@@ -176,7 +160,6 @@ export const MeetingsPage: React.FC = () => {
 
   return (
     <div className="animate-fadeIn">
-      {/* الشريط العلوي */}
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-lg font-bold">إدارة الاجتماعات والمؤتمرات</h2>
         <button onClick={openModal} className="bb flex items-center gap-2">
@@ -184,7 +167,6 @@ export const MeetingsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* قائمة الاجتماعات */}
       <div className="grid gap-3">
         {loading ? (
           <div className="text-center py-16 text-gray-500">جاري مزامنة الاجتماعات...</div>
@@ -225,7 +207,7 @@ export const MeetingsPage: React.FC = () => {
                   
                   <div className="flex" style={{ gap: '2px' }}>
                     {meeting.attendeesUids?.slice(0, 4).map(uid => (
-                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(30,58,110,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff' }}>
+                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(30,58,110,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '8px', color: '#fff' }}>
                         {getUserInfo(uid)?.name?.[0] || '?'}
                       </div>
                     ))}
@@ -248,7 +230,6 @@ export const MeetingsPage: React.FC = () => {
         )}
       </div>
 
-      {/* نافذة إضافة اجتماع (Modal) */}
       {isModalOpen && (
         <div className="mo z-50">
           <div className="mc fi p-6 relative w-full max-w-lg">
@@ -288,7 +269,6 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* إعدادات الأونلاين */}
               {type === 'online' && (
                 <div className="p-3 bg-[#111] border border-[#1f1f1f] rounded-lg">
                   <label className="block text-xs mb-1" style={{ color: 'var(--tx2)' }}>المنصة الرقمية</label>
@@ -305,7 +285,6 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* إعدادات الحضوري (الفروع والقاعات) */}
               {type === 'offline' && (
                 <div className="p-3 bg-[#111] border border-[#1f1f1f] rounded-lg flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -331,7 +310,6 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               )}
 
-              {/* المشاركون */}
               <div className="relative">
                 <label className="block text-xs mb-1" style={{ color: 'var(--tx2)' }}>المدعوون للاجتماع</label>
                 <div className="p-2 min-h-[40px] bg-[#111] border border-[#1f1f1f] rounded-lg flex flex-wrap gap-2 items-center">

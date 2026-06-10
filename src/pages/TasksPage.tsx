@@ -1,8 +1,8 @@
 // ==========================================
 // صفحة المهام (Tasks Page)
-// تتضمن عرض المهام، الفلترة، وإضافة/تعديل المهام مع المنشن والمرفقات
+// تتضمن عرض المهام، الفلترة، وإضافة/تعديل المهام مع المرفقات
 // ==========================================
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaPlus, FaInbox, FaTimes, FaSave, FaFile, 
   FaTrash, FaEdit, FaBuilding, FaUser, FaCalendar, FaClock, FaCloudUploadAlt, FaDownload 
@@ -43,9 +43,7 @@ export const TasksPage: React.FC = () => {
   const [assignees, setAssignees] = useState<string[]>([]);
   const [files, setFiles] = useState<{ name: string; type: string; url: string }[]>([]);
 
-  // حالات البحث عن المنشن والمسؤولين
-  const [mentionQuery, setMentionQuery] = useState('');
-  const [showMentionDrop, setShowMentionDrop] = useState(false);
+  // حالات البحث عن المسؤولين
   const [assigneeQuery, setAssigneeQuery] = useState('');
   const [showAssigneeDrop, setShowAssigneeDrop] = useState(false);
 
@@ -64,7 +62,6 @@ export const TasksPage: React.FC = () => {
       setUsers(fetchedUsers);
     });
 
-    // إدارات ثابتة كمثال لكودك، يمكن جلبها من السحابة لاحقاً
     setDepartments([
       { id: 'd1', name: 'الموارد البشرية', managerUid: null },
       { id: 'd2', name: 'التسويق', managerUid: null },
@@ -83,19 +80,17 @@ export const TasksPage: React.FC = () => {
     if (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') return true;
     if (task.department === userProfile.department) return true;
     if (task.assigneesUids?.includes(userProfile.uid)) return true;
-    if (task.cr === userProfile.uid) return true; // cr: createdBy
+    if (task.createdByUid === userProfile.uid) return true;
     return false;
   };
 
   const visibleTasks = tasks.filter(canSeeTask).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   const filteredTasks = filter === 'all' ? visibleTasks : visibleTasks.filter(t => t.department === filter);
 
-  // الفلاتر المتاحة بناءً على صلاحية المستخدم
   const availableFilters = userProfile?.primaryRole === 'chairman' || userProfile?.primaryRole === 'vp'
     ? departments.map(d => d.name)
     : [userProfile?.department || ''];
 
-  // فتح نافذة الإضافة/التعديل
   const openModal = (task?: Task) => {
     if (task) {
       setEditTaskId(task.id);
@@ -124,7 +119,6 @@ export const TasksPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  // حفظ المهمة سحابياً
   const handleSaveTask = async () => {
     if (!title || !date || !time) {
       alert('يرجى ملء الحقول الأساسية (العنوان، التاريخ، الوقت)');
@@ -133,7 +127,7 @@ export const TasksPage: React.FC = () => {
     const taskData = {
       title, date, time, description, priority, status,
       department: userProfile?.primaryRole === 'chairman' || userProfile?.primaryRole === 'vp' ? 'الإدارة العليا' : userProfile?.department,
-      cr: userProfile?.uid, // المنشئ
+      createdByUid: userProfile?.uid || '',
       assigneesUids: assignees,
       mentionsUids: mentions,
       files,
@@ -153,7 +147,6 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  // حذف المهمة
   const handleDeleteTask = async (id: string) => {
     if (confirm('هل أنت متأكد من حذف هذه المهمة نهائياً؟')) {
       try {
@@ -165,7 +158,6 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  // رفع الملفات (نظام مبسط للحفاظ على الكفاءة)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (!selectedFiles) return;
@@ -183,12 +175,10 @@ export const TasksPage: React.FC = () => {
     });
   };
 
-  // دالة لجلب معلومات المستخدم من المعرف
   const getUserInfo = (uid: string) => users.find(u => u.uid === uid);
 
   return (
     <div className="animate-fadeIn">
-      {/* شريط الفلاتر والإضافة */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-5 gap-4">
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setFilter('all')} className={`tb ${filter === 'all' ? 'ac' : ''}`}>الكل ({visibleTasks.length})</button>
@@ -203,7 +193,6 @@ export const TasksPage: React.FC = () => {
         </button>
       </div>
 
-      {/* قائمة المهام */}
       <div id="tL" className="grid gap-3">
         {loading ? (
           <div className="text-center py-16 text-gray-500">جاري جلب المهام سحابياً...</div>
@@ -232,10 +221,10 @@ export const TasksPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px]" style={{ color: 'var(--tx2)' }}>{getUserInfo(task.cr)?.name || ''}</span>
+                  <span className="text-[10px]" style={{ color: 'var(--tx2)' }}>{getUserInfo(task.createdByUid)?.name || ''}</span>
                   <div className="flex" style={{ gap: '2px' }}>
                     {task.assigneesUids?.slice(0, 3).map(uid => (
-                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(139,26,26,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff' }}>
+                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(139,26,26,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '8px', color: '#fff' }}>
                         {getUserInfo(uid)?.name?.[0] || '?'}
                       </div>
                     ))}
@@ -247,7 +236,6 @@ export const TasksPage: React.FC = () => {
         )}
       </div>
 
-      {/* نافذة عرض المهمة (View Task) */}
       {viewTask && (
         <div className="mo z-50">
           <div className="mc fi p-6 relative w-full max-w-lg">
@@ -265,7 +253,7 @@ export const TasksPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
               <div><span style={{ color: 'var(--tx2)' }}>التاريخ:</span> {viewTask.date}</div>
               <div><span style={{ color: 'var(--tx2)' }}>الوقت:</span> {viewTask.time}</div>
-              <div><span style={{ color: 'var(--tx2)' }}>المنشئ:</span> {getUserInfo(viewTask.cr)?.name}</div>
+              <div><span style={{ color: 'var(--tx2)' }}>المنشئ:</span> {getUserInfo(viewTask.createdByUid)?.name}</div>
             </div>
 
             <div className="mb-4">
@@ -298,7 +286,7 @@ export const TasksPage: React.FC = () => {
               </div>
             )}
 
-            {(userProfile?.primaryRole === 'chairman' || userProfile?.primaryRole === 'vp' || userProfile?.uid === viewTask.cr) && (
+            {(userProfile?.primaryRole === 'chairman' || userProfile?.primaryRole === 'vp' || userProfile?.uid === viewTask.createdByUid) && (
               <div className="flex gap-2 mt-6 pt-4 border-t border-[#1f1f1f]">
                 <button onClick={() => { setViewTask(null); openModal(viewTask); }} className="bb flex items-center gap-1"><FaEdit /> تعديل</button>
                 <button onClick={() => handleDeleteTask(viewTask.id)} className="cursor-pointer text-red-500 bg-red-500/10 px-4 py-2 rounded-lg font-bold flex items-center gap-1 border-none"><FaTrash /> حذف</button>
@@ -308,7 +296,6 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
 
-      {/* نافذة إضافة/تعديل المهمة (Create/Edit Modal) */}
       {isModalOpen && (
         <div className="mo z-50">
           <div className="mc fi p-6 relative w-full max-w-xl">
@@ -358,7 +345,6 @@ export const TasksPage: React.FC = () => {
                 <textarea className="ip" rows={3} value={description} onChange={e => setDescription(e.target.value)}></textarea>
               </div>
 
-              {/* قسم المسؤولين (Assignees) */}
               <div className="relative">
                 <label className="block text-xs mb-1" style={{ color: 'var(--tx2)' }}>المسؤولون عن التنفيذ</label>
                 <div className="p-2 min-h-[40px] bg-[#111] border border-[#1f1f1f] rounded-lg flex flex-wrap gap-2 items-center">
@@ -387,7 +373,6 @@ export const TasksPage: React.FC = () => {
                 )}
               </div>
 
-              {/* قسم المرفقات */}
               <div>
                 <label className="block text-xs mb-1" style={{ color: 'var(--tx2)' }}>مرفقات المهمة</label>
                 <label className="block border-2 border-dashed border-[#1f1f1f] rounded-lg p-4 text-center cursor-pointer hover:border-[#8B1A1A] transition-colors">
