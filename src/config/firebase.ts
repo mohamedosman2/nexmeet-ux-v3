@@ -1,7 +1,9 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
+// مفاتيح مشروعك الأصلية (nexmeet-ux)
 const firebaseConfig = {
   apiKey: "AIzaSyAk54yJdFpHjwVMxdy4V8tTzi2eKREP34g",
   authDomain: "nexmeet-ux.firebaseapp.com",
@@ -12,6 +14,8 @@ const firebaseConfig = {
   measurementId: "G-JXS7C8VBMC"
 };
 
-export const app = initializeApp(firebaseConfig);
+// تهيئة الاتصال
+const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);

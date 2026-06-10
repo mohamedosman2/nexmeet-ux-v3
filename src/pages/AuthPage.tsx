@@ -1,41 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { auth } from '../config/firebase';
-import { 
-  signInWithEmailAndPassword, 
-  sendPasswordResetEmail,
-  RecaptchaVerifier, 
-  signInWithPhoneNumber 
-} from 'firebase/auth';
-import { FaEnvelope, FaLock } from 'react-icons/fa';
+import { signInWithEmailAndPassword, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
-declare global {
-  interface Window {
-    recaptchaVerifier: any;
-  }
-}
+declare global { interface Window { recaptchaVerifier: any; } }
 
 export const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [view, setView] = useState<'login' | 'reset' | 'phone'>('login');
+  const [view, setView] = useState<'login' | 'magic' | 'phone'>('login');
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  // التحقق مما إذا كان المستخدم ضغط على رابط الدخول السحري (Magic Link)
+  useEffect(() => {
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let emailForSignIn = window.localStorage.getItem('emailForSignIn');
+      if (!emailForSignIn) {
+        emailForSignIn = window.prompt('يرجى تأكيد بريدك الإلكتروني لإكمال الدخول:');
+      }
+      if (emailForSignIn) {
+        signInWithEmailLink(auth, emailForSignIn, window.location.href)
+          .then(() => window.localStorage.removeItem('emailForSignIn'))
+          .catch((error) => setMessage({ type: 'error', text: 'خطأ في الرابط أو منتهي الصلاحية.' }));
+      }
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage({ type: '', text: '' });
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      setMessage({ type: 'error', text: `خطأ: ${error.code}` });
+      setMessage({ type: 'error', text: 'بيانات الدخول غير صحيحة.' });
     }
   };
 
-  const handleResetPassword = async (e: React.FormEvent) => {
+  const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
+    const actionCodeSettings = {
+      url: window.location.origin + '/login', // رابط موقعك للعودة بعد الضغط
+      handleCodeInApp: true,
+    };
     try {
-      await sendPasswordResetEmail(auth, email);
-      setMessage({ type: 'success', text: 'تم إرسال رابط إعادة التعيين لبريدك.' });
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem('emailForSignIn', email);
+      setMessage({ type: 'success', text: 'تم إرسال رابط الدخول (Magic Link) إلى بريدك.' });
     } catch (error: any) {
       setMessage({ type: 'error', text: `خطأ: ${error.code}` });
     }
@@ -43,32 +52,25 @@ export const AuthPage: React.FC = () => {
 
   const handlePhoneLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage({ type: '', text: '' });
-    
-    if (!phone.startsWith('+')) {
-      setMessage({ type: 'error', text: 'يجب كتابة رقم الجوال بالصيغة الدولية الكاملة مثل +9665xxxxxxxx' });
-      return;
-    }
-
     if (!window.recaptchaVerifier) {
       window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
     }
-    
     try {
       const confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
-      const code = window.prompt('أدخل كود التوثيق المرسل لجوالك:');
+      const code = window.prompt('أدخل كود التوثيق المرسل لجوالك (SMS):');
       if (code) await confirmationResult.confirm(code);
     } catch (error: any) {
-      setMessage({ type: 'error', text: `خطأ أثناء التحقق من الجوال: ${error.code}` });
+      setMessage({ type: 'error', text: `فشل الإرسال: ${error.message}` });
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] text-white" dir="rtl" style={{ background: '#0a0a0a' }}>
-      <div className="w-full max-w-md mx-4 relative z-10 bg-[#151515] border border-[#1f1f1f] rounded-2xl p-8 shadow-2xl">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-[#8B1A1A]">United Experts</h2>
-          <p className="text-sm text-gray-400">نظام إدارة المهام - الدخول للنظام</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0a] text-[#e8e8e8]" dir="rtl">
+      <div className="w-full max-w-md mx-4 bg-[#151515] border border-[#1f1f1f] rounded-2xl p-8 shadow-2xl">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-[#1E3A6E] mb-2">United Experts</h2>
+          <h3 className="text-xl font-bold">شركة UX - خبراء المتحدة</h3>
+          <p className="text-sm text-gray-400">نظام إدارة المهام والتقويم</p>
         </div>
 
         {message.text && (
@@ -78,44 +80,39 @@ export const AuthPage: React.FC = () => {
         )}
 
         {view === 'login' && (
-          <form onSubmit={handleEmailLogin}>
+          <form onSubmit={handleLogin}>
             <div className="mb-4">
               <label className="block text-xs mb-2 text-gray-400">البريد الإلكتروني</label>
-              <div className="relative">
-                <FaEnvelope className="absolute right-3 top-3 text-gray-500" />
-                <input type="email" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 pr-10 pl-4" placeholder="example@uexperts.sa" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
+              <input type="email" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4" placeholder="example@uexperts.sa" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="mb-6">
               <label className="block text-xs mb-2 text-gray-400">كلمة المرور</label>
-              <div className="relative">
-                <FaLock className="absolute right-3 top-3 text-gray-500" />
-                <input type="password" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 pr-10 pl-4" placeholder="********" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </div>
+              <input type="password" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4" placeholder="أدخل كلمة المرور" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
-            <button type="submit" className="w-full bg-[#8B1A1A] text-white font-bold py-3 rounded-lg">تسجيل الدخول</button>
-            <div className="flex justify-between mt-4 text-xs">
-              <span onClick={() => setView('reset')} className="cursor-pointer text-[#A52A2A]">نسيت كلمة المرور؟</span>
-              <span onClick={() => setView('phone')} className="cursor-pointer text-blue-400">الدخول بالجوال</span>
+            <button type="submit" className="w-full bg-gradient-to-r from-[#8B1A1A] to-[#A52A2A] text-white font-bold py-3 rounded-lg mb-4 hover:shadow-lg transition-all">تسجيل الدخول</button>
+            <div className="flex justify-between text-xs font-semibold">
+              <span onClick={() => setView('magic')} className="cursor-pointer text-[#A52A2A]">الدخول بالرابط السحري (Magic Link)</span>
+              <span onClick={() => setView('phone')} className="cursor-pointer text-[#1E3A6E]">الدخول بـ SMS</span>
             </div>
           </form>
         )}
 
-        {view === 'reset' && (
-          <form onSubmit={handleResetPassword}>
-            <input type="email" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4 mb-4" placeholder="أدخل بريدك" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button type="submit" className="w-full bg-[#8B1A1A] text-white py-3 rounded-lg mb-2">إرسال رابط الاستعادة</button>
-            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-xs">العودة</button>
+        {view === 'magic' && (
+          <form onSubmit={handleMagicLink}>
+            <label className="block text-xs mb-2 text-gray-400">أدخل بريدك لإرسال رابط الدخول المباشر:</label>
+            <input type="email" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4 mb-4" placeholder="example@uexperts.sa" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button type="submit" className="w-full bg-gradient-to-r from-[#8B1A1A] to-[#A52A2A] text-white py-3 rounded-lg mb-4 font-bold">إرسال رابط الدخول</button>
+            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-xs">العودة للخلف</button>
           </form>
         )}
 
         {view === 'phone' && (
           <form onSubmit={handlePhoneLogin}>
-            {/* تم هنا تعديل دالة الإدخال لتعمل مع رقم الهاتف بشكل سليم وصحيح بدلاً من الإيميل */}
+            <label className="block text-xs mb-2 text-gray-400">رقم الجوال (بالصيغة الدولية):</label>
             <input type="tel" required className="w-full bg-[#111] border border-[#1f1f1f] rounded-lg py-2.5 px-4 mb-4" placeholder="+9665xxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} />
             <div id="recaptcha-container"></div>
-            <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-lg mb-2">إرسال كود التوثيق</button>
-            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-xs">العودة</button>
+            <button type="submit" className="w-full bg-[#1E3A6E] text-white py-3 rounded-lg mb-4 font-bold">إرسال كود التوثيق SMS</button>
+            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-xs">العودة للخلف</button>
           </form>
         )}
       </div>
