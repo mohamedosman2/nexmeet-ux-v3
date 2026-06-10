@@ -1,37 +1,55 @@
-import React from 'react';
-import { FaMoon, FaBell } from 'react-icons/fa';
-import { useLocation } from 'react-router-dom';
+// ==========================================
+// ملف الشريط العلوي (Header)
+// ==========================================
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { FaMoon, FaSun, FaBell } from 'react-icons/fa';
 
 export const Header: React.FC = () => {
   const location = useLocation();
-  
-  // تغيير العنوان بناءً على الرابط الحالي
-  const getTitle = () => {
+  const navigate = useNavigate();
+  // جلب الثيم من المتصفح كما في كودك الأصلي
+  const [theme, setTheme] = useState(localStorage.getItem('ux4_th') || 'dark');
+
+  // دالة لمعرفة اسم الصفحة الحالية
+  const getPageTitle = () => {
     switch (location.pathname) {
       case '/dashboard': return 'التقويم';
       case '/tasks': return 'المهام';
       case '/meetings': return 'الاجتماعات';
       case '/chat': return 'المحادثات';
+      case '/notifications': return 'الإشعارات';
+      case '/profile': return 'الملف الشخصي';
       case '/admin': return 'لوحة التحكم';
-      default: return 'لوحة العمليات';
+      default: return 'نظام إدارة المهام';
     }
   };
 
+  // دالة تغيير الثيم
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('ux4_th', newTheme);
+  };
+
+  // تطبيق الثيم عند التحميل
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   return (
-    <header className="h-14 flex items-center justify-between px-6 flex-shrink-0 bg-[#111] border-b border-[#1f1f1f]">
+    <header className="h-14 flex items-center justify-between px-6 flex-shrink-0" style={{ background: 'var(--bg2)', borderBottom: '1px solid var(--bd)' }}>
       <div className="flex items-center gap-3">
-        <h1 className="text-base font-bold">{getTitle()}</h1>
+        <h1 className="text-base font-bold">{getPageTitle()}</h1>
       </div>
       <div className="flex items-center gap-3">
-        <button className="w-8 h-8 rounded-full border border-[#1f1f1f] bg-[#151515] flex items-center justify-center text-[#888] hover:text-[#8B1A1A] hover:border-[#8B1A1A] transition-all">
-          <FaMoon />
+        <button type="button" className="tgb" onClick={toggleTheme}>
+          {theme === 'light' ? <FaSun /> : <FaMoon />}
         </button>
-        <button className="relative text-[#888] hover:text-[#e8e8e8] cursor-pointer">
+        <button type="button" onClick={() => navigate('/notifications')} className="relative cursor-pointer" style={{ color: 'var(--tx2)' }}>
           <FaBell />
-          {/* دائرة الإشعارات الحمراء */}
-          <span className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
-            3
-          </span>
+          <span style={{ display: 'none' }} className="absolute -top-1 -left-1 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">0</span>
         </button>
       </div>
     </header>

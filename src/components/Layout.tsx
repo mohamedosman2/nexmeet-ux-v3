@@ -1,3 +1,6 @@
+// ==========================================
+// ملف الهيكل العام للموقع (Layout)
+// ==========================================
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
@@ -5,15 +8,16 @@ import { Header } from './Header';
 
 export const Layout: React.FC = () => {
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-[#e8e8e8] overflow-hidden" dir="rtl">
-      {/* الشريط الجانبي */}
+    <div className="h-screen flex font-cairo" dir="rtl">
+      {/* القائمة الجانبية */}
       <Sidebar />
       
-      {/* القسم الأيسر الذي يحتوي على المحتوى المتغير */}
+      {/* المحتوى الأيسر (الهيدر + الصفحات) */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <Header />
-        <div id="cArea" className="flex-1 overflow-y-auto p-6">
-          {/* هنا يتم عرض الصفحات (التقويم، المهام، الخ) بناءً على الرابط */}
+        
+        {/* منطقة المحتوى المتغيرة (سيتم عرض المهام والتقويم هنا) */}
+        <div id="cArea" className="flex-1 overflow-y-auto p-6" style={{ background: 'var(--bg)' }}>
           <Outlet />
         </div>
       </main>

@@ -1,3 +1,6 @@
+// ==========================================
+// ملف تهيئة الاتصال بخوادم Firebase
+// ==========================================
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -14,8 +17,10 @@ const firebaseConfig = {
   measurementId: "G-JXS7C8VBMC"
 };
 
-// تهيئة الاتصال
+// تهيئة تطبيق Firebase
 const app = initializeApp(firebaseConfig);
+
+// تصدير الخدمات لاستخدامها في باقي النظام
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
