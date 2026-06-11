@@ -5,15 +5,13 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
-  sendSignInLinkToEmail, 
-  isSignInWithEmailLink, 
-  signInWithEmailLink,
   signOut,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const DEPARTMENTS = [
   'التسويق', 'المالية والتدقيق', 'الموارد البشرية', 'التكنولوجيا', 'العلاقات العامة', 'الإدارة العليا'
@@ -23,6 +21,7 @@ type AuthView = 'login' | 'register' | 'forgot';
 
 export const AuthPage: React.FC = () => {
   const { currentUser, isPending } = useAuth();
+  const navigate = useNavigate();
   
   // حالات البيانات
   const [email, setEmail] = useState('');
@@ -36,58 +35,18 @@ export const AuthPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [is2FAWaiting, setIs2FAWaiting] = useState(false);
 
   // =========================================================
-  // 1. التوجيه التلقائي الجذري (تم الإصلاح لمنع التعليق)
+  // 1. التوجيه التلقائي الجذري
   // =========================================================
   useEffect(() => {
     if (currentUser && !isPending) {
-      window.location.replace('/');
+      window.location.replace('/dashboard');
     }
   }, [currentUser, isPending]);
 
   // =========================================================
-  // 2. معالجة رابط التأكيد للمصادقة الثنائية (تم الإصلاح لمنع التعليق)
-  // =========================================================
-  useEffect(() => {
-    const handleEmailLink = async () => {
-      if (isSignInWithEmailLink(auth, window.location.href)) {
-        setLoading(true);
-        let savedEmail = window.localStorage.getItem('emailForSignIn');
-        
-        if (!savedEmail) {
-          savedEmail = window.prompt('يرجى تأكيد بريدك الإلكتروني لإكمال الدخول بأمان:');
-        }
-        
-        try {
-          await signInWithEmailLink(auth, savedEmail || '', window.location.href);
-          window.localStorage.removeItem('emailForSignIn');
-          setSuccessMsg('تم التحقق بنجاح! يتم الآن مزامنة بياناتك ونقلك للنظام...');
-          
-          window.history.replaceState(null, '', '/login');
-          
-          setTimeout(() => {
-            window.location.replace('/'); 
-          }, 1500);
-
-        } catch (err: any) {
-          if (auth.currentUser) {
-            window.location.replace('/');
-          } else {
-            console.error(err);
-            setErrorMsg('الرابط منتهي الصلاحية أو تم استخدامه مسبقاً. يرجى إعادة المحاولة.');
-          }
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-    handleEmailLink();
-  }, []);
-
-  // =========================================================
-  // 3. الدخول الأساسي (كلمة مرور + رابط تأكيد)
+  // 2. الدخول الأساسي המباشر
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,26 +68,16 @@ export const AuthPage: React.FC = () => {
         }
       }
 
-      const actionCodeSettings = {
-        url: window.location.origin + '/', 
-        handleCodeInApp: true,
-      };
-      
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      
-      await signOut(auth); 
-      
-      setIs2FAWaiting(true);
-      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول الآمن إلى بريدك، تفقد صندوق الوارد.');
+      setSuccessMsg('تم تسجيل الدخول بنجاح! جاري التوجيه...');
+      setTimeout(() => {
+        window.location.replace('/dashboard'); 
+      }, 500);
       
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setErrorMsg('بيانات الدخول غير صحيحة. تأكد من البريد وكلمة المرور.');
-      } else if (err.code === 'auth/quota-exceeded') {
-         setErrorMsg('تم تجاوز الحد اليومي لإرسال رسائل التحقق (Quota Exceeded). يرجى المحاولة لاحقاً.');
+      if (err.code === 'auth/too-many-requests' || err.code === 'auth/quota-exceeded') {
+        setErrorMsg('تم حظر الدخول مؤقتاً بسبب كثرة المحاولات. يرجى تغيير شبكة الإنترنت أو المحاولة لاحقاً.');
       } else {
-        setErrorMsg(`حدث خطأ: ${err.message}`);
+        setErrorMsg('بيانات الدخول غير صحيحة. تأكد من البريد وكلمة المرور.');
       }
     } finally {
       setLoading(false);
@@ -136,7 +85,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // 4. استعادة كلمة المرور
+  // 3. استعادة كلمة المرور
   // =========================================================
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,7 +103,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // 5. إنشاء حساب موظف جديد
+  // 4. إنشاء حساب موظف جديد
   // =========================================================
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,7 +150,7 @@ export const AuthPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-white mb-2">حسابك قيد المراجعة</h2>
           <p className="text-gray-400 text-sm mb-6">مرحباً بك في شركة UX. يرجى انتظار تفعيل حسابك من قبل مدير إدارتك للبدء في استخدام النظام.</p>
-          <button onClick={() => { auth.signOut(); window.location.href = '/login'; }} className="text-sm text-red-500 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10">
+          <button onClick={() => { auth.signOut(); window.location.replace('/login'); }} className="text-sm text-red-500 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10">
             تسجيل الخروج والعودة
           </button>
         </div>
@@ -236,73 +185,60 @@ export const AuthPage: React.FC = () => {
         {errorMsg && <div className="bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center mb-5 font-bold">{errorMsg}</div>}
         {successMsg && <div className="bg-green-900/30 border border-green-500/50 text-green-400 p-3 rounded-lg text-sm text-center mb-5 font-bold">{successMsg}</div>}
 
-        {is2FAWaiting ? (
-          <div className="text-center py-6">
-            <div className="w-16 h-16 bg-[#1E3A6E]/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#1E3A6E]">
-              <span className="text-2xl">📧</span>
+        {/* واجهة الدخول الأساسية */}
+        {view === 'login' && (
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-right text-sm text-[#888] mb-1">البريد الإلكتروني</label>
+              <input type="email" dir="ltr" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
-            <h3 className="text-white font-bold mb-2">في انتظار تأكيد الدخول</h3>
-            <p className="text-sm text-gray-400 mb-6">تم إرسال رابط الدخول الآمن لبريدك، تفقد صندوق الوارد.</p>
-            <button onClick={() => setIs2FAWaiting(false)} className="text-sm text-[#8B1A1A] hover:underline">العودة وإعادة المحاولة</button>
-          </div>
-        ) : (
-          <>
-            {/* واجهة الدخول الأساسية */}
-            {view === 'login' && (
-              <form onSubmit={handleLogin} className="flex flex-col gap-4">
-                <div>
-                  <label className="block text-right text-sm text-[#888] mb-1">البريد الإلكتروني</label>
-                  <input type="email" dir="ltr" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
-                </div>
-                <div>
-                  <label className="block text-right text-sm text-[#888] mb-1">كلمة المرور</label>
-                  <input type="password" dir="ltr" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={password} onChange={(e) => setPassword(e.target.value)} />
-                </div>
-                <button type="submit" disabled={loading} className="w-full mt-2 bg-[#A52A2A] text-white font-bold py-3 rounded-lg hover:bg-[#8B1A1A] transition-colors">
-                  {loading ? 'جاري المعالجة...' : 'تسجيل الدخول'}
-                </button>
-                <div className="flex justify-between items-center mt-2 px-1">
-                  <button type="button" onClick={() => setView('register')} className="text-[#1E3A6E] text-sm font-bold hover:underline">إنشاء حساب جديد</button>
-                  <button type="button" onClick={() => setView('forgot')} className="text-[#8B1A1A] text-sm font-bold hover:underline">نسيت كلمة المرور؟</button>
-                </div>
-              </form>
-            )}
+            <div>
+              <label className="block text-right text-sm text-[#888] mb-1">كلمة المرور</label>
+              <input type="password" dir="ltr" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </div>
+            <button type="submit" disabled={loading} className="w-full mt-2 bg-[#A52A2A] text-white font-bold py-3 rounded-lg hover:bg-[#8B1A1A] transition-colors">
+              {loading ? 'جاري المعالجة...' : 'تسجيل الدخول'}
+            </button>
+            <div className="flex justify-between items-center mt-2 px-1">
+              <button type="button" onClick={() => setView('register')} className="text-[#1E3A6E] text-sm font-bold hover:underline">إنشاء حساب جديد</button>
+              <button type="button" onClick={() => setView('forgot')} className="text-[#8B1A1A] text-sm font-bold hover:underline">نسيت كلمة المرور؟</button>
+            </div>
+          </form>
+        )}
 
-            {/* واجهة إنشاء حساب */}
-            {view === 'register' && (
-              <form onSubmit={handleRegister} className="flex flex-col gap-3">
-                <div className="text-center mb-2">
-                  <h3 className="text-white font-bold mb-1">تسجيل موظف جديد</h3>
-                </div>
-                <input type="text" placeholder="الاسم الكامل" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={name} onChange={(e) => setName(e.target.value)} />
-                <input type="text" dir="ltr" placeholder="رقم الجوال" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={phone} onChange={(e) => setPhone(e.target.value)} />
-                <select required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={department} onChange={(e) => setDepartment(e.target.value)}>
-                  {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
-                </select>
-                <input type="email" dir="ltr" placeholder="البريد الإلكتروني" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <input type="password" dir="ltr" placeholder="كلمة المرور (6 أحرف على الأقل)" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={password} onChange={(e) => setPassword(e.target.value)} />
-                <button type="submit" disabled={loading} className="w-full mt-2 bg-[#1E3A6E] text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition-colors">
-                  {loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}
-                </button>
-                <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">لدي حساب بالفعل</button>
-              </form>
-            )}
+        {/* واجهة إنشاء حساب */}
+        {view === 'register' && (
+          <form onSubmit={handleRegister} className="flex flex-col gap-3">
+            <div className="text-center mb-2">
+              <h3 className="text-white font-bold mb-1">تسجيل موظف جديد</h3>
+            </div>
+            <input type="text" placeholder="الاسم الكامل" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={name} onChange={(e) => setName(e.target.value)} />
+            <input type="text" dir="ltr" placeholder="رقم الجوال" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <select required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={department} onChange={(e) => setDepartment(e.target.value)}>
+              {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
+            </select>
+            <input type="email" dir="ltr" placeholder="البريد الإلكتروني" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input type="password" dir="ltr" placeholder="كلمة المرور (6 أحرف على الأقل)" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button type="submit" disabled={loading} className="w-full mt-2 bg-[#1E3A6E] text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition-colors">
+              {loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}
+            </button>
+            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">لدي حساب بالفعل</button>
+          </form>
+        )}
 
-            {/* واجهة استعادة كلمة المرور */}
-            {view === 'forgot' && (
-              <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
-                <div className="text-center mb-2">
-                  <h3 className="text-white font-bold mb-1">استعادة كلمة المرور</h3>
-                  <p className="text-xs text-gray-500">أدخل بريدك المسجل لإرسال رابط إعادة التعيين.</p>
-                </div>
-                <input type="email" dir="ltr" required placeholder="البريد الإلكتروني" className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
-                <button type="submit" disabled={loading} className="w-full mt-2 bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-700 transition-colors">
-                  {loading ? 'جاري الإرسال...' : 'إرسال رابط الاستعادة'}
-                </button>
-                <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">العودة لتسجيل الدخول</button>
-              </form>
-            )}
-          </>
+        {/* واجهة استعادة كلمة المرور */}
+        {view === 'forgot' && (
+          <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+            <div className="text-center mb-2">
+              <h3 className="text-white font-bold mb-1">استعادة كلمة المرور</h3>
+              <p className="text-xs text-gray-500">أدخل بريدك المسجل لإرسال رابط إعادة التعيين.</p>
+            </div>
+            <input type="email" dir="ltr" required placeholder="البريد الإلكتروني" className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button type="submit" disabled={loading} className="w-full mt-2 bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-700 transition-colors">
+              {loading ? 'جاري الإرسال...' : 'إرسال رابط الاستعادة'}
+            </button>
+            <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">العودة لتسجيل الدخول</button>
+          </form>
         )}
       </div>
     </div>
