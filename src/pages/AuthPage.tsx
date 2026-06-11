@@ -1,12 +1,11 @@
 // ==========================================
 // صفحة تسجيل الدخول (Auth Page)
-// تم إيقاف المصادقة الثنائية (2FA) مؤقتاً لتجنب استهلاك الحصة
+// تم إصلاح خطأ الـ Build واستبدال التوجيه بـ useNavigate لمنع التكرار
 // ==========================================
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
-  // sendSignInLinkToEmail, ✅ تم التعليق
   isSignInWithEmailLink, 
   signInWithEmailLink,
   signOut,
@@ -15,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const DEPARTMENTS = [
   'التسويق', 'المالية والتدقيق', 'الموارد البشرية', 'التكنولوجيا', 'العلاقات العامة', 'الإدارة العليا'
@@ -24,6 +24,7 @@ type AuthView = 'login' | 'register' | 'forgot';
 
 export const AuthPage: React.FC = () => {
   const { currentUser, isPending } = useAuth();
+  const navigate = useNavigate();
   
   // حالات البيانات
   const [email, setEmail] = useState('');
@@ -40,16 +41,16 @@ export const AuthPage: React.FC = () => {
   const [is2FAWaiting, setIs2FAWaiting] = useState(false);
 
   // =========================================================
-  // 1. التوجيه التلقائي الجذري
+  // 1. التوجيه التلقائي الجذري باستخدام useNavigate
   // =========================================================
   useEffect(() => {
     if (currentUser && !isPending) {
-      window.location.href = '/';
+      navigate('/');
     }
-  }, [currentUser, isPending]);
+  }, [currentUser, isPending, navigate]);
 
   // =========================================================
-  // 2. معالجة رابط التأكيد للمصادقة الثنائية (متروكة كما هي للرجوع لها لاحقاً)
+  // 2. معالجة رابط التأكيد للمصادقة الثنائية
   // =========================================================
   useEffect(() => {
     const handleEmailLink = async () => {
@@ -69,12 +70,12 @@ export const AuthPage: React.FC = () => {
           window.history.replaceState(null, '', '/login');
           
           setTimeout(() => {
-            window.location.href = '/'; 
+            navigate('/'); 
           }, 1500);
 
         } catch (err: any) {
           if (auth.currentUser) {
-            window.location.href = '/';
+            navigate('/');
           } else {
             console.error(err);
             setErrorMsg('الرابط منتهي الصلاحية أو تم استخدامه مسبقاً. يرجى إعادة المحاولة.');
@@ -85,10 +86,10 @@ export const AuthPage: React.FC = () => {
       }
     };
     handleEmailLink();
-  }, []);
+  }, [navigate]);
 
   // =========================================================
-  // 3. الدخول الأساسي (معدل لتخطي 2FA مؤقتاً)
+  // 3. الدخول الأساسي (معدل لتخطي 2FA مؤقتاً وبدون مشاكل توجيه)
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,30 +98,29 @@ export const AuthPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // 1. التحقق من البريد وكلمة المرور
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       
-      // 2. جلب بيانات المستخدم من فايرستور
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (!userData.isActive && userData.email !== 'm.othman@uexperts.sa') {
           setErrorMsg('بيانات الدخول صحيحة، ولكن حسابك قيد المراجعة الإدارية. يرجى الانتظار.');
-          await signOut(auth); // تسجيل خروج لأن الحساب غير مفعل
+          await signOut(auth);
           setLoading(false);
           return;
         }
       }
 
       // =======================================================
-      // تم إيقاف الجزء الخاص بإرسال الرابط (2FA) لتجنب تجاوز الحصة
-      // =======================================================
+      // تم إيقاف الجزء الخاص بإرسال الرابط (2FA) لتجنب تجاوز الحصة اليومية
+      // متاح هنا كـ Comment للرجوع إليه مستقبلاً:
       /*
       const actionCodeSettings = {
         url: window.location.origin + '/', 
         handleCodeInApp: true,
       };
       
+      // ملاحظة: يتطلب استيراد sendSignInLinkToEmail مجدداً عند تفعيله
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       
@@ -129,11 +129,12 @@ export const AuthPage: React.FC = () => {
       setIs2FAWaiting(true);
       setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول الآمن إلى بريدك، تفقد صندوق الوارد.');
       */
+      // =======================================================
 
-      // تسجيل دخول مباشر وتوجيه للنظام
+      // تسجيل دخول مباشر وتوجيه سلس ونظيف للنظام
       setSuccessMsg('تم تسجيل الدخول بنجاح! جاري التوجيه...');
       setTimeout(() => {
-        window.location.href = '/'; 
+        navigate('/'); 
       }, 1000);
       
     } catch (err: any) {
@@ -212,7 +213,7 @@ export const AuthPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-white mb-2">حسابك قيد المراجعة</h2>
           <p className="text-gray-400 text-sm mb-6">مرحباً بك في شركة UX. يرجى انتظار تفعيل حسابك من قبل مدير إدارتك للبدء في استخدام النظام.</p>
-          <button onClick={() => { auth.signOut(); window.location.href = '/login'; }} className="text-sm text-red-500 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10">
+          <button onClick={() => { auth.signOut(); navigate('/login'); }} className="text-sm text-red-500 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10">
             تسجيل الخروج والعودة
           </button>
         </div>
