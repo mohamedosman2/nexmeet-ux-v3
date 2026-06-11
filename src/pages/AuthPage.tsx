@@ -1,8 +1,9 @@
 // ==========================================
 // صفحة تسجيل الدخول (Auth Page)
-// تم استعادة حقول التسجيل كاملة + إصلاح مشكلة التوجيه بعد الرابط السحري
+// تم حل مشكلة التوجيه العالق (Bounce Back Loop) وتطبيق استماع تفاعلي للصلاحيات
 // ==========================================
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -13,16 +14,19 @@ import {
   createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { useAuth } from '../contexts/AuthContext';
 
 const DEPARTMENTS = [
   'التسويق', 'المالية والتدقيق', 'الموارد البشرية', 'التكنولوجيا', 'العلاقات العامة', 'الإدارة العليا'
 ];
 
 export const AuthPage: React.FC = () => {
+  const navigate = useNavigate();
+  // 🔥 جلب حالة المستخدم مباشرة من جدار الحماية لمنع أي توجيه خاطئ 🔥
+  const { currentUser, userProfile, isPending } = useAuth();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  // حقول التسجيل المستعادة
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
@@ -33,7 +37,21 @@ export const AuthPage: React.FC = () => {
   const [is2FAWaiting, setIs2FAWaiting] = useState(false);
   const [view, setView] = useState<'login' | 'register'>('login');
 
-  // 1. معالجة الرابط السحري عند العودة من البريد الإلكتروني
+  // =========================================================
+  // 1. نظام التوجيه التلقائي الصارم (يمنع التعليق في صفحة الدخول)
+  // =========================================================
+  useEffect(() => {
+    if (currentUser && userProfile) {
+      if (userProfile.isActive) {
+        // بمجرد أن يكتمل تحميل الملف ويصبح مفعلاً، يتم نقلك للنظام فوراً وبلا رجعة
+        navigate('/', { replace: true });
+      }
+    }
+  }, [currentUser, userProfile, navigate]);
+
+  // =========================================================
+  // 2. معالجة الرابط السحري عند العودة من البريد
+  // =========================================================
   useEffect(() => {
     const handleEmailLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -46,12 +64,13 @@ export const AuthPage: React.FC = () => {
         try {
           await signInWithEmailLink(auth, savedEmail || '', window.location.href);
           window.localStorage.removeItem('emailForSignIn');
-          setSuccessMsg('تم التحقق بنجاح! جاري توجيهك للنظام...');
+          setSuccessMsg('تم التحقق بنجاح! يتم الآن مزامنة بياناتك ونقلك للنظام...');
           
-          // 🔥 توجيه جذري إجباري لضمان الدخول للنظام وعدم التعليق في صفحة الدخول 🔥
-          setTimeout(() => {
-            window.location.href = '/'; 
-          }, 1000);
+          // تنظيف الرابط في المتصفح حتى لا يتم استخدامه مرة أخرى بالخطأ
+          window.history.replaceState(null, '', '/login');
+          
+          // 💡 ملاحظة: لا نحتاج لكتابة أمر توجيه هنا، لأن الـ useEffect الأول سيلتقط
+          // تغير حالة الـ currentUser وينقلك بقوة فور تحميل الملف الشخصي.
 
         } catch (err: any) {
           console.error(err);
@@ -64,7 +83,9 @@ export const AuthPage: React.FC = () => {
     handleEmailLink();
   }, []);
 
-  // 2. دالة تسجيل الدخول (التحقق من كلمة المرور ثم إرسال الرابط)
+  // =========================================================
+  // 3. دالة تسجيل الدخول (التحقق من كلمة المرور ثم إرسال الرابط)
+  // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -72,23 +93,19 @@ export const AuthPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // 1. التحقق من البريد وكلمة المرور
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       
-      // 2. التحقق من حالة تفعيل الحساب (isActive) قبل إرسال الرابط
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        // نستثني حسابك الأساسي من هذا القيد لضمان عدم قفله
         if (!userData.isActive && userData.email !== 'm.othman@uexperts.sa') {
-          setErrorMsg('حسابك لا يزال قيد المراجعة من قبل مدير إدارتك. يرجى الانتظار لحين التفعيل.');
-          await signOut(auth); // تسجيل خروجه فوراً
+          setErrorMsg('حسابك لا يزال قيد المراجعة. يرجى الانتظار لحين تفعيله من الإدارة.');
+          await signOut(auth);
           setLoading(false);
           return;
         }
       }
 
-      // 3. الحساب مفعل والباسورد صحيح، نرسل الرابط السحري
       const actionCodeSettings = {
         url: window.location.origin + '/login',
         handleCodeInApp: true,
@@ -97,10 +114,11 @@ export const AuthPage: React.FC = () => {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       
-      await signOut(auth); // تسجيل الخروج مؤقتاً لانتظار ضغطة الرابط
+      // إجبار النظام على تسجيل الخروج لضمان عدم الدخول إلا بالرابط
+      await signOut(auth); 
       
       setIs2FAWaiting(true);
-      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول النهائي إلى بريدك.');
+      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول النهائي إلى صندوق الوارد الخاص بك.');
       
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') setErrorMsg('هذا البريد غير مسجل في النظام.');
@@ -112,7 +130,9 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  // 3. دالة إنشاء حساب جديد بكامل الحقول
+  // =========================================================
+  // 4. إنشاء حساب موظف جديد
+  // =========================================================
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -120,7 +140,6 @@ export const AuthPage: React.FC = () => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // تخزين بيانات الموظف مع القسم المطلوب لينتظر تفعيل المدير
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
         email: email.toLowerCase(),
@@ -129,12 +148,13 @@ export const AuthPage: React.FC = () => {
         department: department,
         primaryRole: 'employee',
         additionalTitles: [],
-        isActive: false // قيد المراجعة
+        isActive: false // يحتاج موافقة الإدارة
       });
+      
+      await signOut(auth); // تسجيل خروج فوري لضمان بقائه في صفحة الانتظار
       
       setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى انتظار تفعيل الإدارة لحسابك.');
       setView('login');
-      // تصفير الحقول
       setPassword('');
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') setErrorMsg('هذا البريد مسجل مسبقاً.');
@@ -145,6 +165,30 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  // =========================================================
+  // واجهة حسابات "قيد المراجعة" (لمنع بقائهم عالقين في شاشة بيضاء)
+  // =========================================================
+  if (currentUser && isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: '#0a0a0a', fontFamily: 'Cairo, sans-serif' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.15), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.1), transparent 50%)' }}></div>
+        <div className="w-full max-w-md p-8 rounded-2xl border border-yellow-900/50 bg-[#111] relative z-10 shadow-2xl text-center">
+          <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-yellow-500/50">
+            <span className="text-3xl">⏳</span>
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">حسابك قيد المراجعة</h2>
+          <p className="text-gray-400 text-sm mb-6">مرحباً بك في شركة UX. يرجى انتظار تفعيل حسابك من قبل مدير إدارتك أو الإدارة العليا للبدء في استخدام النظام.</p>
+          <button onClick={() => auth.signOut()} className="text-sm text-red-500 hover:text-red-400 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10 transition-colors">
+            تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // الواجهة الرئيسية (تسجيل الدخول / التسجيل)
+  // =========================================================
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: '#0a0a0a', fontFamily: 'Cairo, sans-serif' }}>
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.15), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.1), transparent 50%)' }}></div>
@@ -188,7 +232,6 @@ export const AuthPage: React.FC = () => {
         ) : (
           <form onSubmit={view === 'login' ? handleLogin : handleRegister} className="flex flex-col gap-4">
             
-            {/* حقول إضافية خاصة بالتسجيل فقط */}
             {view === 'register' && (
               <>
                 <div>
@@ -226,7 +269,6 @@ export const AuthPage: React.FC = () => {
               </>
             )}
 
-            {/* الحقول المشتركة */}
             <div>
               <label className="block text-right text-sm text-[#888] mb-1">البريد الإلكتروني</label>
               <input 
