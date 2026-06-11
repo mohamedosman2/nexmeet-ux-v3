@@ -224,7 +224,7 @@ export const TasksPage: React.FC = () => {
                   <span className="text-[10px]" style={{ color: 'var(--tx2)' }}>{getUserInfo(task.createdByUid)?.name || ''}</span>
                   <div className="flex" style={{ gap: '2px' }}>
                     {task.assigneesUids?.slice(0, 3).map(uid => (
-                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(139,26,26,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '8px', color: '#fff' }}>
+                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(139,26,26,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff' }}>
                         {getUserInfo(uid)?.name?.[0] || '?'}
                       </div>
                     ))}

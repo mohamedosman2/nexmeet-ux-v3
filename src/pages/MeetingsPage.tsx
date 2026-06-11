@@ -1,3 +1,7 @@
+// ==========================================
+// صفحة الاجتماعات (Meetings Page)
+// تتضمن جدولة الاجتماعات الحضورية وعن بُعد، مع خريطة الفروع والقاعات
+// ==========================================
 import React, { useState, useEffect } from 'react';
 import { 
   FaPlus, FaVideo, FaMapMarkerAlt, FaExternalLinkAlt, 
@@ -8,6 +12,7 @@ import { collection, onSnapshot, addDoc, deleteDoc, doc } from 'firebase/firesto
 import { useAuth } from '../contexts/AuthContext';
 import type { Meeting, UserProfile } from '../types';
 
+// خريطة مناطق وفروع وقاعات الشركة (مطابقة لكودك الأصلي تماماً)
 const BRANCHES_DATA = [
   { id: 'b1', rg: 'المنطقة الوسطى', br: [
       { id: 'br1', nm: 'فرع الحمرا (اليرموك)', rm: ['القاعة الرئيسية', 'تدريب 1', 'تدريب 2'] },
@@ -31,11 +36,13 @@ const PLATFORM_LINKS: Record<string, string> = {
 export const MeetingsPage: React.FC = () => {
   const { userProfile } = useAuth();
   
+  // الحالات الأساسية (State)
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // hقول نموذج الإضافة
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState('10:00');
@@ -43,15 +50,18 @@ export const MeetingsPage: React.FC = () => {
   const [platform, setPlatform] = useState('zoom');
   const [customLink, setCustomLink] = useState('');
   
+  // حقول الفروع
   const [region, setRegion] = useState(BRANCHES_DATA[0].rg);
   const [branch, setBranch] = useState(BRANCHES_DATA[0].br[0].id);
   const [room, setRoom] = useState(BRANCHES_DATA[0].br[0].rm[0]);
   
+  // حقول المشاركين
   const [attendees, setAttendees] = useState<string[]>([]);
   const [attendeeQuery, setAssigneeQuery] = useState('');
   const [showAssigneeDrop, setShowAssigneeDrop] = useState(false);
   const [notes, setNotes] = useState('');
 
+  // جلب البيانات من السحابة في الوقت الفعلي
   useEffect(() => {
     const unsubMeetings = onSnapshot(collection(db, 'meetings'), (snapshot) => {
       const fetchedMeetings: Meeting[] = [];
@@ -69,6 +79,7 @@ export const MeetingsPage: React.FC = () => {
     return () => { unsubMeetings(); unsubUsers(); };
   }, []);
 
+  // تحديث القوائم المنسدلة للفروع والقاعات عند تغيير المنطقة
   useEffect(() => {
     const selectedRegion = BRANCHES_DATA.find(r => r.rg === region);
     if (selectedRegion && selectedRegion.br.length > 0) {
@@ -85,6 +96,7 @@ export const MeetingsPage: React.FC = () => {
     }
   }, [branch, region]);
 
+  // التحقق من صلاحية رؤية الاجتماع
   const canSeeMeeting = (meeting: Meeting) => {
     if (!userProfile) return false;
     if (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') return true;
@@ -95,6 +107,7 @@ export const MeetingsPage: React.FC = () => {
 
   const visibleMeetings = meetings.filter(canSeeMeeting).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 
+  // فتح نافذة الإضافة
   const openModal = () => {
     setTitle('');
     setDate(new Date().toISOString().split('T')[0]);
@@ -107,6 +120,7 @@ export const MeetingsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // حفظ الاجتماع سحابياً
   const handleSaveMeeting = async () => {
     if (!title || !date || !time) {
       alert('يرجى ملء الحقول الأساسية (العنوان، التاريخ، الوقت)');
@@ -140,6 +154,7 @@ export const MeetingsPage: React.FC = () => {
     }
   };
 
+  // حذف الاجتماع
   const handleDeleteMeeting = async (id: string) => {
     if (confirm('هل أنت متأكد من إلغاء وحذف هذا الاجتماع؟')) {
       try {
@@ -207,7 +222,7 @@ export const MeetingsPage: React.FC = () => {
                   
                   <div className="flex" style={{ gap: '2px' }}>
                     {meeting.attendeesUids?.slice(0, 4).map(uid => (
-                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(30,58,110,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justify: 'center', fontSize: '8px', color: '#fff' }}>
+                      <div key={uid} title={getUserInfo(uid)?.name} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(30,58,110,.5)', border: '1px solid var(--bd)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff' }}>
                         {getUserInfo(uid)?.name?.[0] || '?'}
                       </div>
                     ))}
