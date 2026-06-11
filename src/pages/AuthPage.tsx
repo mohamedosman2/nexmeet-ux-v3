@@ -1,9 +1,8 @@
 // ==========================================
 // صفحة تسجيل الدخول (Auth Page)
-// تم تطبيق نظام المصادقة الثنائية (كلمة المرور + رابط التحقق الإجباري)
+// تم استعادة حقول التسجيل كاملة + إصلاح مشكلة التوجيه بعد الرابط السحري
 // ==========================================
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -13,19 +12,28 @@ import {
   signOut,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+
+const DEPARTMENTS = [
+  'التسويق', 'المالية والتدقيق', 'الموارد البشرية', 'التكنولوجيا', 'العلاقات العامة', 'الإدارة العليا'
+];
 
 export const AuthPage: React.FC = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
+  // حقول التسجيل المستعادة
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [department, setDepartment] = useState(DEPARTMENTS[0]);
+
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [is2FAWaiting, setIs2FAWaiting] = useState(false); // حالة انتظار التحقق من الرابط
-  const [view, setView] = useState<'login' | 'register'>('login'); // للتبديل بين الدخول والتسجيل
+  const [is2FAWaiting, setIs2FAWaiting] = useState(false);
+  const [view, setView] = useState<'login' | 'register'>('login');
 
-  // 1. معالجة الرابط السحري عند ضغط الموظف عليه من بريده
+  // 1. معالجة الرابط السحري عند العودة من البريد الإلكتروني
   useEffect(() => {
     const handleEmailLink = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -39,19 +47,24 @@ export const AuthPage: React.FC = () => {
           await signInWithEmailLink(auth, savedEmail || '', window.location.href);
           window.localStorage.removeItem('emailForSignIn');
           setSuccessMsg('تم التحقق بنجاح! جاري توجيهك للنظام...');
-          setTimeout(() => navigate('/dashboard'), 1500);
+          
+          // 🔥 توجيه جذري إجباري لضمان الدخول للنظام وعدم التعليق في صفحة الدخول 🔥
+          setTimeout(() => {
+            window.location.href = '/'; 
+          }, 1000);
+
         } catch (err: any) {
           console.error(err);
-          setErrorMsg('الرابط منتهي الصلاحية أو غير صالح. يرجى تسجيل الدخول مجدداً.');
+          setErrorMsg('الرابط منتهي الصلاحية أو تم استخدامه مسبقاً. يرجى تسجيل الدخول مجدداً.');
         } finally {
           setLoading(false);
         }
       }
     };
     handleEmailLink();
-  }, [navigate]);
+  }, []);
 
-  // 2. دالة تسجيل الدخول (كلمة المرور + إرسال الرابط)
+  // 2. دالة تسجيل الدخول (التحقق من كلمة المرور ثم إرسال الرابط)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -59,53 +72,70 @@ export const AuthPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // الخطوة الأولى: التحقق من صحة الإيميل والباسورد
-      await signInWithEmailAndPassword(auth, email, password);
+      // 1. التحقق من البريد وكلمة المرور
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
       
-      // الخطوة الثانية: الباسورد صحيح! الآن نرسل رابط التأكيد كخطوة أمنية ثانية
+      // 2. التحقق من حالة تفعيل الحساب (isActive) قبل إرسال الرابط
+      const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // نستثني حسابك الأساسي من هذا القيد لضمان عدم قفله
+        if (!userData.isActive && userData.email !== 'm.othman@uexperts.sa') {
+          setErrorMsg('حسابك لا يزال قيد المراجعة من قبل مدير إدارتك. يرجى الانتظار لحين التفعيل.');
+          await signOut(auth); // تسجيل خروجه فوراً
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3. الحساب مفعل والباسورد صحيح، نرسل الرابط السحري
       const actionCodeSettings = {
-        url: window.location.origin + '/login', // العودة لنفس الصفحة للتحقق
+        url: window.location.origin + '/login',
         handleCodeInApp: true,
       };
       
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       
-      // تسجيل الخروج فوراً حتى لا يدخل النظام قبل الضغط على الرابط
-      await signOut(auth); 
+      await signOut(auth); // تسجيل الخروج مؤقتاً لانتظار ضغطة الرابط
       
       setIs2FAWaiting(true);
-      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول النهائي إلى بريدك، يرجى تفقد صندوق الوارد.');
+      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول النهائي إلى بريدك.');
       
     } catch (err: any) {
-      console.error(err.code);
-      // ترجمة الأخطاء لتعرف المشكلة بالضبط
       if (err.code === 'auth/user-not-found') setErrorMsg('هذا البريد غير مسجل في النظام.');
       else if (err.code === 'auth/wrong-password') setErrorMsg('كلمة المرور غير صحيحة.');
-      else if (err.code === 'auth/invalid-credential') setErrorMsg('بيانات الدخول (البريد أو كلمة المرور) غير صحيحة.');
+      else if (err.code === 'auth/invalid-credential') setErrorMsg('بيانات الدخول غير صحيحة.');
       else setErrorMsg(`حدث خطأ: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // دالة إنشاء حساب جديد (للموظفين الجدد)
+  // 3. دالة إنشاء حساب جديد بكامل الحقول
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // تخزين بيانات الموظف مع القسم المطلوب لينتظر تفعيل المدير
       await setDoc(doc(db, 'users', userCredential.user.uid), {
         uid: userCredential.user.uid,
         email: email.toLowerCase(),
-        name: email.split('@')[0],
-        department: 'قيد التحديد',
+        name: name,
+        phone: phone,
+        department: department,
         primaryRole: 'employee',
-        isActive: false // الحساب يحتاج تفعيل من الإدارة
+        additionalTitles: [],
+        isActive: false // قيد المراجعة
       });
+      
       setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى انتظار تفعيل الإدارة لحسابك.');
       setView('login');
+      // تصفير الحقول
+      setPassword('');
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') setErrorMsg('هذا البريد مسجل مسبقاً.');
       else if (err.code === 'auth/weak-password') setErrorMsg('كلمة المرور ضعيفة (يجب أن تكون 6 أحرف على الأقل).');
@@ -117,8 +147,6 @@ export const AuthPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: '#0a0a0a', fontFamily: 'Cairo, sans-serif' }}>
-      
-      {/* الخلفية والأشكال */}
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.15), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.1), transparent 50%)' }}></div>
       <div className="absolute rounded-full opacity-10 bg-[#8B1A1A] w-64 h-64 top-[10%] left-[20%] blur-[100px]"></div>
       <div className="absolute rounded-full opacity-10 bg-[#1E3A6E] w-80 h-80 top-[40%] right-[15%] blur-[120px]"></div>
@@ -154,11 +182,51 @@ export const AuthPage: React.FC = () => {
               <span className="text-2xl">📧</span>
             </div>
             <h3 className="text-white font-bold mb-2">في انتظار تأكيد الدخول</h3>
-            <p className="text-sm text-gray-400 mb-6">الرجاء التوجه إلى بريدك الإلكتروني والضغط على رابط الدخول السري لإكمال العملية بأمان.</p>
-            <button onClick={() => setIs2FAWaiting(false)} className="text-sm text-[#8B1A1A] hover:underline">العودة وتسجيل الدخول بحساب آخر</button>
+            <p className="text-sm text-gray-400 mb-6">الرجاء التوجه إلى بريدك الإلكتروني والضغط على الرابط لإكمال الدخول بأمان.</p>
+            <button onClick={() => setIs2FAWaiting(false)} className="text-sm text-[#8B1A1A] hover:underline">العودة وإعادة المحاولة</button>
           </div>
         ) : (
           <form onSubmit={view === 'login' ? handleLogin : handleRegister} className="flex flex-col gap-4">
+            
+            {/* حقول إضافية خاصة بالتسجيل فقط */}
+            {view === 'register' && (
+              <>
+                <div>
+                  <label className="block text-right text-sm text-[#888] mb-1">الاسم الكامل</label>
+                  <input 
+                    type="text" 
+                    required
+                    className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A] transition-colors"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-right text-sm text-[#888] mb-1">رقم الجوال</label>
+                  <input 
+                    type="text" 
+                    dir="ltr"
+                    required
+                    className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A] transition-colors"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-right text-sm text-[#888] mb-1">الإدارة أو القسم</label>
+                  <select 
+                    required
+                    className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A] transition-colors"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                  >
+                    {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* الحقول المشتركة */}
             <div>
               <label className="block text-right text-sm text-[#888] mb-1">البريد الإلكتروني</label>
               <input 
