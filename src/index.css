@@ -2,8 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: 'Cairo', sans-serif;
-  background-color: #0a0a0a;
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg: #0a0a0a; --bg2: #111; --bg3: #151515; --tx: #e8e8e8; --tx2: #888;
+  --bd: #1f1f1f; --inp: #111; --hv: rgba(139,26,26,.08); --ov: rgba(0,0,0,.7);
+  --chat: #0d0d0d; --bub: #1e1e1a; --ph: #555;
+  --lg: radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.15), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.1), transparent 50%), #0a0a0a;
+  --fo: .07;
 }
+
+[data-theme="light"] {
+  --bg: #f5f2ed; --bg2: #fff; --bg3: #fff; --tx: #2c2926; --tx2: #7a746e;
+  --bd: #e2dfda; --inp: #f0ede8; --hv: rgba(139,26,26,.05); --ov: rgba(0,0,0,.35);
+  --chat: #eeebe6; --bub: #e0ddd8; --ph: #aaa;
+  --lg: radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.08), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.06), transparent 50%), #f5f2ed;
+  --fo: .04;
+}
+
+body { background: var(--bg); color: var(--tx); overflow: hidden; height: 100vh; font-family: 'Cairo', sans-serif; margin: 0; padding: 0; box-sizing: border-box; direction: rtl; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: #8B1A1A; border-radius: 9px; }
+
+/* Custom HTML UI Classes */
+.fs { position: absolute; border-radius: 50%; opacity: var(--fo); animation: fl 8s ease-in-out infinite; }
+.fs:nth-child(2) { animation-delay: -3s; animation-duration: 10s; }
+.fs:nth-child(3) { animation-delay: -5s; animation-duration: 12s; }
+@keyframes fl { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-30px); } }
+@keyframes fi { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.fi { animation: fi .4s ease; }
+.si { transition: all .2s; border-right: 3px solid transparent; cursor: pointer; color: var(--tx2); padding: 10px 16px; display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.si:hover, .si.ac { background: var(--hv); border-right-color: #8B1A1A; color: var(--tx); }
+.bb { background: linear-gradient(135deg, #8B1A1A, #A52A2A); color: #fff; border: none; cursor: pointer; transition: all .2s; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.bb:hover { background: linear-gradient(135deg, #A52A2A, #C03030); transform: translateY(-1px); }
+.cd { background: var(--bg3); border: 1px solid var(--bd); border-radius: 12px; padding: 16px; }
+.ip { background: var(--inp); border: 1px solid var(--bd); color: var(--tx); border-radius: 8px; padding: 10px 14px; width: 100%; font-size: 14px; transition: border .2s; }
+.ip:focus { outline: none; border-color: #8B1A1A; box-shadow: 0 0 0 3px rgba(139,26,26,.15); }
+.ip::placeholder { color: var(--ph); }
+.bg { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.mo { position: fixed; inset: 0; background: var(--ov); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.mc { background: var(--bg3); border: 1px solid var(--bd); border-radius: 16px; max-height: 85vh; overflow-y: auto; width: 90%; max-width: 600px; }
+.tb { padding: 8px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; color: var(--tx2); background: var(--hv); }
+.tb.ac { background: #8B1A1A; color: #fff; }
+.cb { max-width: 75%; padding: 10px 14px; border-radius: 14px; position: relative; }
+.md { position: absolute; background: var(--bg3); border: 1px solid var(--bd); border-radius: 8px; max-height: 200px; overflow-y: auto; z-index: 150; box-shadow: 0 8px 25px rgba(0,0,0,.3); }
+.mi { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--tx); }
+.mi:hover { background: var(--hv); }
+.fc { display: inline-flex; align-items: center; gap: 6px; background: var(--hv); border: 1px solid var(--bd); border-radius: 8px; padding: 4px 10px; font-size: 12px; }
