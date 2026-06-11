@@ -1,6 +1,6 @@
 // ==========================================
-// صفحة تسجيل الدخول الشاملة (Auth Page)
-// تتضمن كافة الواجهات الأصلية (رابط سحري، SMS، استعادة، تسجيل، ومصادقة ثنائية)
+// صفحة تسجيل الدخول (Auth Page)
+// تم إصلاح أخطاء الـ JSX وإزالة خيارات (الرابط السحري / SMS) حسب الطلب
 // ==========================================
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
@@ -20,7 +20,7 @@ const DEPARTMENTS = [
   'التسويق', 'المالية والتدقيق', 'الموارد البشرية', 'التكنولوجيا', 'العلاقات العامة', 'الإدارة العليا'
 ];
 
-type AuthView = 'login' | 'register' | 'magic' | 'sms' | 'forgot';
+type AuthView = 'login' | 'register' | 'forgot';
 
 export const AuthPage: React.FC = () => {
   const { currentUser, isPending } = useAuth();
@@ -40,7 +40,7 @@ export const AuthPage: React.FC = () => {
   const [is2FAWaiting, setIs2FAWaiting] = useState(false);
 
   // =========================================================
-  // 1. التوجيه التلقائي إذا كان مسجلاً ومفعلاً
+  // 1. التوجيه التلقائي الجذري
   // =========================================================
   useEffect(() => {
     if (currentUser && !isPending) {
@@ -49,7 +49,7 @@ export const AuthPage: React.FC = () => {
   }, [currentUser, isPending]);
 
   // =========================================================
-  // 2. معالجة الرابط السحري عند الضغط عليه من البريد
+  // 2. معالجة رابط التأكيد للمصادقة الثنائية
   // =========================================================
   useEffect(() => {
     const handleEmailLink = async () => {
@@ -88,7 +88,7 @@ export const AuthPage: React.FC = () => {
   }, []);
 
   // =========================================================
-  // 3. الدخول الأساسي (مصادقة ثنائية: كلمة مرور -> رابط)
+  // 3. الدخول الأساسي (كلمة مرور + رابط تأكيد)
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,30 +134,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // 4. إرسال الرابط السحري (بدون كلمة مرور)
-  // =========================================================
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-    setLoading(true);
-    try {
-      const actionCodeSettings = {
-        url: window.location.origin + '/',
-        handleCodeInApp: true,
-      };
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      setSuccessMsg('تم إرسال رابط الدخول السحري لبريدك، تفقد صندوق الوارد.');
-    } catch (err: any) {
-      setErrorMsg(`حدث خطأ أثناء الإرسال: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // =========================================================
-  // 5. استعادة كلمة المرور
+  // 4. استعادة كلمة المرور
   // =========================================================
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,7 +152,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // 6. إنشاء حساب موظف جديد
+  // 5. إنشاء حساب موظف جديد
   // =========================================================
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,11 +187,12 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // شاشة "حسابك قيد المراجعة"
+  // شاشة حساب قيد المراجعة
   // =========================================================
   if (currentUser && isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: '#0a0a0a', fontFamily: 'Cairo, sans-serif' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 20% 50%, rgba(139,26,26,.15), transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(30,58,110,.1), transparent 50%)' }}></div>
         <div className="w-full max-w-md p-8 rounded-2xl border border-yellow-900/50 bg-[#111] relative z-10 shadow-2xl text-center">
           <div className="w-16 h-16 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-yellow-500/50">
             <span className="text-3xl">⏳</span>
@@ -256,22 +234,18 @@ export const AuthPage: React.FC = () => {
         {errorMsg && <div className="bg-red-900/30 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm text-center mb-5 font-bold">{errorMsg}</div>}
         {successMsg && <div className="bg-green-900/30 border border-green-500/50 text-green-400 p-3 rounded-lg text-sm text-center mb-5 font-bold">{successMsg}</div>}
 
-        {/* شاشة انتظار الدخول الثنائي */}
         {is2FAWaiting ? (
           <div className="text-center py-6">
             <div className="w-16 h-16 bg-[#1E3A6E]/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-[#1E3A6E]">
               <span className="text-2xl">📧</span>
             </div>
             <h3 className="text-white font-bold mb-2">في انتظار تأكيد الدخول</h3>
-            <p className="text-sm text-gray-400 mb-6">تم إرسال رابط الدخول السحري لبريدك، تفقد صندوق الوارد.</p>
+            <p className="text-sm text-gray-400 mb-6">تم إرسال رابط الدخول الآمن لبريدك، تفقد صندوق الوارد.</p>
             <button onClick={() => setIs2FAWaiting(false)} className="text-sm text-[#8B1A1A] hover:underline">العودة وإعادة المحاولة</button>
           </div>
         ) : (
-          
-          /* تبديل الواجهات (Login, Register, Magic, SMS, Forgot) */
           <>
-            
-            {/* 1. واجهة تسجيل الدخول الأساسية */}
+            {/* واجهة الدخول الأساسية */}
             {view === 'login' && (
               <form onSubmit={handleLogin} className="flex flex-col gap-4">
                 <div>
@@ -289,3 +263,46 @@ export const AuthPage: React.FC = () => {
                   <button type="button" onClick={() => setView('register')} className="text-[#1E3A6E] text-sm font-bold hover:underline">إنشاء حساب جديد</button>
                   <button type="button" onClick={() => setView('forgot')} className="text-[#8B1A1A] text-sm font-bold hover:underline">نسيت كلمة المرور؟</button>
                 </div>
+              </form>
+            )}
+
+            {/* واجهة إنشاء حساب */}
+            {view === 'register' && (
+              <form onSubmit={handleRegister} className="flex flex-col gap-3">
+                <div className="text-center mb-2">
+                  <h3 className="text-white font-bold mb-1">تسجيل موظف جديد</h3>
+                </div>
+                <input type="text" placeholder="الاسم الكامل" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={name} onChange={(e) => setName(e.target.value)} />
+                <input type="text" dir="ltr" placeholder="رقم الجوال" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <select required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={department} onChange={(e) => setDepartment(e.target.value)}>
+                  {DEPARTMENTS.map(dep => <option key={dep} value={dep}>{dep}</option>)}
+                </select>
+                <input type="email" dir="ltr" placeholder="البريد الإلكتروني" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input type="password" dir="ltr" placeholder="كلمة المرور (6 أحرف على الأقل)" required className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <button type="submit" disabled={loading} className="w-full mt-2 bg-[#1E3A6E] text-white font-bold py-3 rounded-lg hover:bg-blue-800 transition-colors">
+                  {loading ? 'جاري الإنشاء...' : 'إنشاء الحساب'}
+                </button>
+                <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">لدي حساب بالفعل</button>
+              </form>
+            )}
+
+            {/* واجهة استعادة كلمة المرور */}
+            {view === 'forgot' && (
+              <form onSubmit={handleResetPassword} className="flex flex-col gap-4">
+                <div className="text-center mb-2">
+                  <h3 className="text-white font-bold mb-1">استعادة كلمة المرور</h3>
+                  <p className="text-xs text-gray-500">أدخل بريدك المسجل لإرسال رابط إعادة التعيين.</p>
+                </div>
+                <input type="email" dir="ltr" required placeholder="البريد الإلكتروني" className="w-full bg-[#151515] border border-[#1f1f1f] text-white rounded-lg p-3 text-sm focus:outline-none focus:border-[#8B1A1A]" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <button type="submit" disabled={loading} className="w-full mt-2 bg-yellow-600 text-white font-bold py-3 rounded-lg hover:bg-yellow-700 transition-colors">
+                  {loading ? 'جاري الإرسال...' : 'إرسال رابط الاستعادة'}
+                </button>
+                <button type="button" onClick={() => setView('login')} className="w-full text-gray-400 text-sm hover:text-white font-bold mt-2">العودة لتسجيل الدخول</button>
+              </form>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
