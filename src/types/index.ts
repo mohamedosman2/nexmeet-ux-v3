@@ -1,26 +1,30 @@
 // ==========================================
 // ملف تعريفات الأنواع (TypeScript Definitions)
-// هذا الملف هو الأساس الذي يمنع الأخطاء البرمجية
+// مطابق 100% لهيكل البيانات في كود الـ HTML الأصلي + الميزات الجديدة
 // ==========================================
 
-// 1. أنواع الصلاحيات (الأدوار) المطابقة لنظامك
+// 1. الصلاحيات (Roles)
 export type Role = 'chairman' | 'vp' | 'manager' | 'employee';
 
-// 2. نوع هيكل المستخدم (UserProfile)
+// 2. المستخدم (يعادل مصفوفة 'u' في كودك الأصلي)
 export interface UserProfile {
-  uid: string;                 // معرف فايربيز الفريد
-  name: string;                // الاسم الكامل
-  email: string;               // البريد الإلكتروني
-  phone: string;               // رقم الجوال
-  department: string;          // الإدارة (التسويق، المالية، إلخ)
-  primaryRole: Role;           // الصلاحية الأساسية (رئيس، مدير، موظف)
-  additionalTitles: string[];  // الألقاب الإضافية (مستشار، سكرتير، إلخ)
-  isActive: boolean;           // هل الحساب مفعل أم قيد المراجعة؟
-  avatarUrl?: string | null;   // رابط الصورة الشخصية (إن وجدت)
+  uid: string;                 // id
+  name: string;                // name
+  email: string;               // email
+  phone: string;               // ph
+  department: string;          // dp (الإدارة الأساسية)
+  primaryRole: Role;           // rl (الدور التقني)
+  additionalTitles: string[];  // الألقاب الإضافية (مثل: مستشار رئيس مجلس الإدارة)
+  isActive: boolean;           // ok (هل الحساب مفعل أم قيد المراجعة)
+  avatarUrl?: string | null;   // av (الصورة الشخصية)
+  
+  // -- الإضافات الجديدة الخاصة بالصلاحيات --
+  hasCustomAdminAccess?: boolean;   // صلاحية استثنائية لفتح لوحة التحكم
+  accessibleDepartments?: string[]; // إدارات متعددة يمكن للمستشار/المدير إدارتها
 }
 
-// 3. نوع طلبات الانضمام (Approvals)
-export type ApprovalStatus = 'pm' | 'pc' | 'ap' | 'rj'; // pm: بانتظار المدير, pc: بانتظار الرئيس, ap: موافقة, rj: رفض
+// 3. طلبات الانضمام (يعادل مصفوفة 'a' في كودك الأصلي)
+export type ApprovalStatus = 'pm' | 'pc' | 'ap' | 'rj'; 
 export interface JoinRequest {
   id: string;
   uid: string;
@@ -29,94 +33,94 @@ export interface JoinRequest {
   timestamp: number;
 }
 
-// 4. هيكل الإدارات والفروع (Departments & Branches)
+// 4. الإدارات (يعادل مصفوفة 'd' في كودك الأصلي)
 export interface Department {
   id: string;
-  name: string;
-  managerUid: string | null;
+  name: string;              // nm
+  managerUid: string | null; // mg
 }
 
-export interface Room {
-  name: string;
-}
-
+// 5. الفروع (يعادل مصفوفة 'b' في كودك الأصلي)
 export interface BranchInfo {
   id: string;
-  name: string;
-  rooms: string[];
+  name: string;    // nm
+  rooms: string[]; // rm
 }
 
 export interface Region {
   id: string;
-  region: string;
-  branches: BranchInfo[];
+  region: string;         // rg
+  branches: BranchInfo[]; // br
 }
 
-// 5. أنواع المهام (Tasks) المطابقة لتفاصيل كودك الأصلي
+// 6. المهام (يعادل مصفوفة 't' في كودك الأصلي)
 export type Priority = 'high' | 'medium' | 'low';
 export type TaskStatus = 'todo' | 'progress' | 'done';
 
 export interface TaskFile {
-  name: string;
-  type: string;
-  url: string; // رابط الملف بعد رفعه لـ Firebase Storage
+  name: string; // nm
+  type: string; // tp
+  url: string;  // d (الرابط بعد الرفع)
 }
 
 export interface Task {
   id: string;
-  title: string;
-  date: string;
-  time: string;
-  description: string;
-  priority: Priority;
-  status: TaskStatus;
-  department: string;
-  createdByUid: string;
-  assigneesUids: string[]; // مصفوفة بمعرفات المسؤولين عن المهمة
-  mentionsUids: string[];  // مصفوفة بمعرفات الأشخاص الذين تم عمل منشن (@) لهم
-  files: TaskFile[];       // المرفقات
+  title: string;           // ti
+  date: string;            // dt
+  time: string;            // tm
+  description: string;     // ds
+  priority: Priority;      // pr
+  status: TaskStatus;      // st
+  department: string;      // dp
+  createdByUid: string;    // cr
+  assigneesUids: string[]; // as (المسؤولون)
+  mentionsUids: string[];  // mn (المنشنات @)
+  files: TaskFile[];       // fl (المرفقات)
   createdAt: number;
+  
+  // -- الخصوصية --
+  isPublic: boolean;       // هل المهمة عامة للإدارة أم خاصة بالمنشن والمسؤولين فقط؟
 }
 
-// 6. أنواع الاجتماعات (Meetings)
+// 7. الاجتماعات (يعادل مصفوفة 'm' في كودك الأصلي)
 export type MeetingType = 'online' | 'offline';
 
 export interface Meeting {
   id: string;
-  title: string;
-  date: string;
-  time: string;
-  type: MeetingType;
-  // بيانات الأونلاين
-  platform?: string;       // Zoom, Meet, Teams, إلخ
-  customLink?: string;
-  // بيانات الحضوري
-  region?: string;
-  branch?: string;
-  room?: string;
-  // بيانات عامة للاجتماع
-  attendeesUids: string[]; // المشاركون
-  mentionsUids: string[];  // المنشن
-  notes?: string;          // الملاحظات
-  createdByUid: string;
+  title: string;           // ti
+  date: string;            // dt
+  time: string;            // tm
+  type: MeetingType;       // tp
+  platform?: string;       // pl (المنصة: zoom, meet...)
+  customLink?: string;     // cp (الرابط المخصص)
+  region?: string;         // rg (المنطقة)
+  branch?: string;         // br (الفرع)
+  room?: string;           // rm (القاعة)
+  attendeesUids: string[]; // at (المدعوون)
+  mentionsUids: string[];  // mn (المنشنات @)
+  notes?: string;          // nt (الأجندة/الملاحظات)
+  createdByUid: string;    // cr (المنشئ)
   createdAt: number;
+  
+  // -- الخصوصية --
+  isPublic: boolean;       // هل الاجتماع عام للإدارة أم خاص بالمدعوين فقط؟
 }
 
-// 7. المحادثات والرسائل (Chat)
+// 8. المحادثات والرسائل (يعادل مصفوفة 'g' في كودك الأصلي)
 export interface ChatMessage {
   id: string;
-  groupId: string;         // معرف الإدارة أو معرف الغرفة الخاصة (dm_...)
-  fromUid: string;         // من أرسل الرسالة
-  text: string;            // نص الرسالة
-  timestamp: number;       // وقت الإرسال
-  isEdited: boolean;       // هل تم تعديلها؟
+  groupId: string;         // gi (معرف الإدارة أو الـ dm)
+  fromUid: string;         // fi (المرسل)
+  text: string;            // tx (نص الرسالة)
+  timestamp: number;       // ts (الوقت)
+  isEdited: boolean;       // ed (معدلة؟)
 }
 
-// 8. الإشعارات (Notifications)
+// 9. الإشعارات (يعادل مصفوفة 'n' في كودك الأصلي)
 export interface Notification {
   id: string;
-  targetUid: string;       // لمن موجه الإشعار
-  text: string;            // نص الإشعار (مثال: تم تعيينك في مهمة كذا)
-  isRead: boolean;         // هل تمت قراءته؟
-  timestamp: number;
+  targetUid: string;       // u (المستهدف)
+  text: string;            // t (نص الإشعار)
+  isRead: boolean;         // r (مقروءة؟)
+  timestamp: number;       // ts (الوقت)
 }

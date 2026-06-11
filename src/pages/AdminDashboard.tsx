@@ -1,31 +1,38 @@
+// ==========================================
+// ملف لوحة التحكم المتقدمة (Admin Dashboard)
+// يدعم الصلاحيات المشتركة، الإدارات المتعددة، والحماية السيبرانية الكاملة
+// ==========================================
 import React, { useState, useEffect } from 'react';
-import { 
-  FaCheck, FaTimes, FaUserTie, FaKey, FaTrash, 
-  FaUserShield, FaPlus, FaBuilding, FaMapMarkerAlt 
-} from 'react-icons/fa';
 import { db, auth } from '../config/firebase';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { UserProfile, Role, Department, Region } from '../types';
+import { 
+  FaCheck, FaTimes, FaUserTie, FaKey, FaTrash, 
+  FaUserShield, FaPlus, FaBuilding, FaMapMarkerAlt, FaUserLock 
+} from 'react-icons/fa';
 
 export const AdminDashboard: React.FC = () => {
   const { userProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'users' | 'approvals' | 'depts' | 'branches'>('users');
   
+  // حالات تخزين البيانات السحابية
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // جلب المزامنة الحية من Firebase في الوقت الفعلي
   useEffect(() => {
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const users: UserProfile[] = [];
-      const seen = new Set<string>();
+      const seenEmails = new Set<string>();
+      
       snapshot.forEach((docSnap) => {
         const u = docSnap.data() as UserProfile;
-        if (u.email && !seen.has(u.email)) {
-          seen.add(u.email);
+        if (u.email && !seenEmails.has(u.email)) {
+          seenEmails.add(u.email);
           users.push({ ...u, uid: u.uid || docSnap.id });
         }
       });
@@ -48,26 +55,50 @@ export const AdminDashboard: React.FC = () => {
     return () => { unsubUsers(); unsubDepts(); unsubRegions(); };
   }, []);
 
-  const pendingApprovals = usersList.filter(u => !u.isActive);
-  const activeUsers = usersList.filter(u => u.isActive);
+  // حساب الإدارات المسموح لهذا الإداري التحكم بها (مصفوفة الصلاحيات المخصصة)
+  const getAllowedDepartments = (): string[] => {
+    if (!userProfile) return [];
+    // الإدارة العليا ترى كل الإدارات بلا قيود
+    if (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') {
+      return departments.map(d => d.name);
+    }
+    // المدير أو صاحب الصلاحية الاستثنائية يرى إدارته الأساسية + الإدارات الممنوحة له
+    const depts = [userProfile.department];
+    if (userProfile.accessibleDepartments) {
+      depts.push(...userProfile.accessibleDepartments);
+    }
+    return depts.filter(Boolean);
+  };
 
+  const allowedDepts = getAllowedDepartments();
+  const isGlobalAdmin = userProfile?.primaryRole === 'chairman' || userProfile?.primaryRole === 'vp';
+
+  // فلترة المستخدمين والطلبات بناءً على مصفوفة الصلاحيات الجدارية
+  const filteredUsers = usersList.filter(u => u.isActive && (isGlobalAdmin || allowedDepts.includes(u.department)));
+  const filteredApprovals = usersList.filter(u => !u.isActive && (isGlobalAdmin || allowedDepts.includes(u.department)));
+
+  // نظام الحماية السيبرانية المطلق للحسابات القيادية والأصول المؤسسية لـ UX
   const isProtectedAccount = (email: string) => {
     if (!email) return false;
     const protectedEmails = ['mohd@uexperts.sa', 'm.othman@uexperts.sa', 'ali@uexperts.sa'];
     return protectedEmails.includes(email.toLowerCase());
   };
 
+  // ==========================================
+  // عمليات معالجة شؤون الموظفين والصلاحيات
+  // ==========================================
+  
   const handleApproveUser = async (user: UserProfile) => {
     try {
       await updateDoc(doc(db, 'users', user.uid), { isActive: true });
       await updateDoc(doc(db, 'users', user.email.toLowerCase()), { isActive: true });
     } catch (err) {
-      alert('خطأ في الموافقة السحابية.');
+      alert('خطأ في معالجة القبول السحابي.');
     }
   };
 
   const handleRejectUser = async (user: UserProfile) => {
-    if (confirm('هل أنت متأكد من رفض وحذف هذا الطلب نهائياً؟')) {
+    if (confirm('هل أنت متأكد من رفض وحذف هذا الطلب بالكامل؟')) {
       try {
         await deleteDoc(doc(db, 'users', user.uid));
         await deleteDoc(doc(db, 'users', user.email.toLowerCase()));
@@ -79,10 +110,10 @@ export const AdminDashboard: React.FC = () => {
 
   const handleDeleteUser = async (user: UserProfile) => {
     if (isProtectedAccount(user.email)) {
-      alert('⚠️ حظر أمني صارم: لا يمكن إزالة رئيس مجلس الإدارة أو المستشارين المعتمدين في النواة.');
+      alert('⚠️ حظر أمني صارم: هذا الحساب محمي بالكامل من النواة البرمجية ولا يمكن حذفه.');
       return;
     }
-    if (confirm(`تحذير: هل تود حذف حساب ${user.name} وجميع صلاحياته؟`)) {
+    if (confirm(`تحذير: هل أنت متأكد من حذف حساب الموظف ${user.name} نهائياً؟`)) {
       try {
         await deleteDoc(doc(db, 'users', user.uid));
         await deleteDoc(doc(db, 'users', user.email.toLowerCase()));
@@ -92,18 +123,62 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleToggleRole = async (user: UserProfile) => {
+  // ترقية الموظف إلى مدير أو العكس (تحديث فوري يمنحه الصلاحيات تلقائياً)
+  const handleToggleManagerRole = async (user: UserProfile) => {
     if (isProtectedAccount(user.email)) {
-      alert('⚠️ حظر أمني: لا يمكن تعديل الصلاحية الأساسية لهذا الحساب القيادي.');
+      alert('⚠️ حظر أمني: الحسابات القيادية العليا غير قابلة للتعديل الهيكلي.');
       return;
     }
-    const roles: Role[] = ['chairman', 'vp', 'manager', 'employee'];
-    const nextRole = roles[(roles.indexOf(user.primaryRole) + 1) % roles.length];
+    
+    const newRole: Role = user.primaryRole === 'manager' ? 'employee' : 'manager';
+    const msg = newRole === 'manager' 
+      ? `هل تريد ترقية ${user.name} ليكون مديراً لإدارة ${user.department} ويمنح الصلاحيات تلقائياً؟`
+      : `هل تريد إزالة إدارة الأقسام عن ${user.name} وتحويله لموظف تشغيلي؟`;
 
-    if (confirm(`هل ترغب في تغيير الصلاحية التقنية لـ ${user.name} إلى: ${nextRole}؟`)) {
+    if (confirm(msg)) {
       try {
-        await updateDoc(doc(db, 'users', user.uid), { primaryRole: nextRole });
-        await updateDoc(doc(db, 'users', user.email.toLowerCase()), { primaryRole: nextRole });
+        await updateDoc(doc(db, 'users', user.uid), { primaryRole: newRole });
+        await updateDoc(doc(db, 'users', user.email.toLowerCase()), { primaryRole: newRole });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // منح صلاحية وصول استثنائية للوحة التحكم (للمستشارين أو الموظفين المحددين)
+  const handleToggleCustomAdminAccess = async (user: UserProfile) => {
+    if (isProtectedAccount(user.email)) return;
+    const currentAccess = user.hasCustomAdminAccess === true;
+    
+    if (confirm(`هل تريد ${currentAccess ? 'إلغاء' : 'منح'} صلاحية دخول لوحة التحكم لـ ${user.name} بصفة استثنائية؟`)) {
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { hasCustomAdminAccess: !currentAccess });
+        await updateDoc(doc(db, 'users', user.email.toLowerCase()), { hasCustomAdminAccess: !currentAccess });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  // ميزة تعديل وإسناد إدارات متعددة (accessibleDepartments) للمستشارين والمديرين
+  const handleEditAccessibleDepartments = async (user: UserProfile) => {
+    if (isProtectedAccount(user.email) && userProfile?.primaryRole !== 'chairman') {
+      alert('تعديل صلاحيات المستشارين الكبار حصرى لرئيس مجلس الإدارة فقط.');
+      return;
+    }
+
+    const currentDepts = user.accessibleDepartments?.join('، ') || 'لا يوجد';
+    const input = prompt(
+      `إسناد إدارات متعددة للمستخدم: ${user.name}\n\nالإدارات المسندة حالياً: ${currentDepts}\n\nاكتب أسماء الإدارات الإضافية مفصولة بفاصلة (،) أو اترك الحقل فارغاً للإلغاء:`, 
+      user.accessibleDepartments?.join('، ') || ''
+    );
+
+    if (input !== null) {
+      const updatedDepts = input.split('،').map(d => d.trim()).filter(d => d.length > 0);
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { accessibleDepartments: updatedDepts });
+        await updateDoc(doc(db, 'users', user.email.toLowerCase()), { accessibleDepartments: updatedDepts });
+        alert('تم تحديث مصفوفة الإدارات المشتركة بنجاح في قاعدة البيانات السحابية!');
       } catch (err) {
         console.error(err);
       }
@@ -112,7 +187,7 @@ export const AdminDashboard: React.FC = () => {
 
   const handleEditTitles = async (user: UserProfile) => {
     const currentTitles = user.additionalTitles?.join('، ') || '';
-    const newTitlesStr = prompt('أدخل الألقاب الإدارية الإضافية (مفصولة بفاصلة):', currentTitles);
+    const newTitlesStr = prompt('أدخل الألقاب والمناصب الإدارية الإضافية (مثال: مستشار رئيس مجلس الإدارة):', currentTitles);
     if (newTitlesStr !== null) {
       const additionalTitles = newTitlesStr.split('،').map(t => t.trim()).filter(t => t.length > 0);
       try {
@@ -125,7 +200,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleResetPassword = async (email: string) => {
-    if (confirm(`هل تريد إرسال رابط رسمي لإعادة تعيين كلمة المرور إلى ${email}؟`)) {
+    if (confirm(`هل تريد إرسال رابط رسمي مشفر لإعادة تعيين كلمة المرور إلى البريد: ${email}؟`)) {
       try {
         await sendPasswordResetEmail(auth, email);
         alert('تم إرسال رابط إعادة التعيين بنجاح!');
@@ -135,32 +210,31 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // ==========================================
+  // هيكلة الفروع والأقسام (حصري للإدارة العليا)
+  // ==========================================
   const handleAddDept = async () => {
-    const name = prompt('أدخل اسم الإدارة الجديدة:');
-    if (name) {
-      await addDoc(collection(db, 'departments'), { name, managerUid: null });
-    }
+    const name = prompt('أدخل اسم الإدارة المؤسسية الجديدة:');
+    if (name) await addDoc(collection(db, 'departments'), { name, managerUid: null });
   };
 
   const handleDeleteDept = async (id: string) => {
-    if (confirm('حذف هذه الإدارة؟')) await deleteDoc(doc(db, 'departments', id));
+    if (confirm('هل أنت متأكد من حذف هذه الإدارة نهائياً؟')) await deleteDoc(doc(db, 'departments', id));
   };
 
   const handleAddRegion = async () => {
-    const region = prompt('اسم المنطقة الجديدة:');
-    if (region) {
-      await addDoc(collection(db, 'regions'), { region, branches: [] });
-    }
+    const region = prompt('اسم المنطقة الجغرافية الجديدة:');
+    if (region) await addDoc(collection(db, 'regions'), { region, branches: [] });
   };
 
   const handleDeleteRegion = async (id: string) => {
-    if (confirm('حذف هذه المنطقة بالكامل بكل فروعها؟')) await deleteDoc(doc(db, 'regions', id));
+    if (confirm('حذف هذه المنطقة بالكامل بكل فروعها وقاعاتها؟')) await deleteDoc(doc(db, 'regions', id));
   };
 
   const handleAddBranch = async (regionId: string, currentBranches: any[]) => {
     const branchName = prompt('اسم الفرع الجديد:');
     if (!branchName) return;
-    const roomsStr = prompt('أدخل أسماء القاعات (مفصولة بفاصلة):', 'القاعة الرئيسية');
+    const roomsStr = prompt('أدخل أسماء قاعات الاجتماعات مفصولة بفاصلة (،):', 'القاعة الرئيسية');
     const rooms = roomsStr ? roomsStr.split('،').map(r => r.trim()) : ['القاعة الرئيسية'];
     
     const newBranch = { id: `br_${Date.now()}`, name: branchName, rooms };
@@ -168,67 +242,93 @@ export const AdminDashboard: React.FC = () => {
   };
 
   const handleDeleteBranch = async (regionId: string, currentBranches: any[], branchId: string) => {
-    if (confirm('حذف هذا الفرع؟')) {
+    if (confirm('حذف هذا الفرع بالكامل؟')) {
       const updatedBranches = currentBranches.filter(b => b.id !== branchId);
       await updateDoc(doc(db, 'regions', regionId), { branches: updatedBranches });
     }
   };
 
-  if (loading) return <div className="text-center py-10 text-gray-500">جاري الاتصال بقاعدة البيانات السحابية...</div>;
+  if (loading) return <div className="text-center py-10 text-gray-500 font-bold">جاري فحص مصفوفة الأمان وجلب البيانات السحابية...</div>;
 
   return (
     <div className="animate-fadeIn">
+      {/* تبويبات لوحة التحكم الديناميكية */}
       <div className="flex gap-2 mb-6 flex-wrap border-b border-[#1f1f1f] pb-4">
         <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-lg text-xs font-bold ${activeTab === 'users' ? 'bg-[#8B1A1A] text-white' : 'bg-[#111] text-gray-400 hover:bg-[#151515]'}`}>
-          المستخدمين الحاليين ({activeUsers.length})
+          الموظفين الحاليين ({filteredUsers.length})
         </button>
         <button onClick={() => setActiveTab('approvals')} className={`px-4 py-2 rounded-lg text-xs font-bold relative ${activeTab === 'approvals' ? 'bg-[#8B1A1A] text-white' : 'bg-[#111] text-gray-400 hover:bg-[#151515]'}`}>
           طلبات الانضمام المعلقة
-          {pendingApprovals.length > 0 && <span className="absolute -top-1 -left-1 bg-yellow-600 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center">{pendingApprovals.length}</span>}
+          {filteredApprovals.length > 0 && <span className="absolute -top-1 -left-1 bg-yellow-600 text-white w-4 h-4 rounded-full text-[9px] flex items-center justify-center">{filteredApprovals.length}</span>}
         </button>
-        {userProfile?.primaryRole === 'chairman' && (
+        {isGlobalAdmin && (
           <>
             <button onClick={() => setActiveTab('depts')} className={`px-4 py-2 rounded-lg text-xs font-bold ${activeTab === 'depts' ? 'bg-[#8B1A1A] text-white' : 'bg-[#111] text-gray-400 hover:bg-[#151515]'}`}>
-              الإدارات والهياكل
+              هيكلة الإدارات والأقسام
             </button>
             <button onClick={() => setActiveTab('branches')} className={`px-4 py-2 rounded-lg text-xs font-bold ${activeTab === 'branches' ? 'bg-[#8B1A1A] text-white' : 'bg-[#111] text-gray-400 hover:bg-[#151515]'}`}>
-              الفروع والمناطق
+              المراكز والفروع الجغرافية
             </button>
           </>
         )}
       </div>
 
+      {/* 1. واجهة إدارة الموظفين والصلاحيات */}
       {activeTab === 'users' && (
         <div className="bg-[#151515] border border-[#1f1f1f] rounded-xl overflow-x-auto">
           <table className="w-full text-sm text-right">
             <thead>
               <tr className="bg-[#111] text-gray-400 text-xs border-b border-[#1f1f1f]">
-                <th className="p-4">الاسم / الموظف</th>
+                <th className="p-4">الموظف</th>
                 <th className="p-4">البريد الإلكتروني</th>
-                <th className="p-4">الإدارة</th>
+                <th className="p-4">الإدارة الأساسية</th>
                 <th className="p-4">الصلاحية التقنية</th>
-                <th className="p-4">المناصب والألقاب الإدارية</th>
-                <th className="p-4">إجراءات</th>
+                <th className="p-4">الإدارات المشتركة المتاحة</th>
+                <th className="p-4">الألقاب والمناصب</th>
+                <th className="p-4">إجراءات التحكم</th>
               </tr>
             </thead>
             <tbody>
-              {activeUsers.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.uid} className="border-b border-[#1f1f1f] hover:bg-[#111]/50">
-                  <td className="p-4 font-semibold">{user.name}</td>
+                  <td className="p-4 font-semibold text-white">{user.name}</td>
                   <td className="p-4 text-xs text-gray-400">{user.email}</td>
-                  <td className="p-4 text-xs">{user.department}</td>
-                  <td className="p-4 text-xs font-bold uppercase text-yellow-500">{user.primaryRole}</td>
-                  <td className="p-4 flex flex-wrap gap-1">
-                    {user.additionalTitles?.map((t, idx) => (
-                      <span key={idx} className="bg-[#8B1A1A]/20 text-red-100 text-[10px] px-2 py-0.5 rounded border border-[#8B1A1A]/40">{t}</span>
-                    ))}
+                  <td className="p-4 text-xs text-red-400 font-bold">{user.department}</td>
+                  <td className="p-4 text-xs font-bold uppercase text-yellow-500">
+                    {user.primaryRole === 'chairman' ? 'رئيس مجلس الإدارة' : user.primaryRole === 'vp' ? 'نائب رئيس' : user.primaryRole === 'manager' ? 'مدير' : 'موظف'}
+                  </td>
+                  <td className="p-4 text-xs">
+                    <div className="flex flex-wrap gap-1 max-w-[180px]">
+                      {user.accessibleDepartments && user.accessibleDepartments.length > 0 ? (
+                        user.accessibleDepartments.map((d, i) => (
+                          <span key={i} className="bg-blue-900/30 text-blue-300 text-[10px] px-1.5 py-0.5 rounded border border-blue-700/30">{d}</span>
+                        ))
+                      ) : (
+                        <span className="text-gray-600 text-[11px]">لا يوجد إدارات إضافية</span>
+                      )}
+                    </div>
                   </td>
                   <td className="p-4">
-                    <div className="flex gap-2">
-                      <button onClick={() => handleToggleRole(user)} className="p-2 rounded bg-[#111] text-yellow-500 hover:bg-[#222]" title="تغيير مستوى الصلاحية"><FaUserShield size={12} /></button>
-                      <button onClick={() => handleEditTitles(user)} className="p-2 rounded bg-[#111] text-blue-400 hover:bg-[#222]" title="إسناد منصب أو لقب إضافي"><FaUserTie size={12} /></button>
-                      <button onClick={() => handleResetPassword(user.email)} className="p-2 rounded bg-[#111] text-green-400 hover:bg-[#222]" title="إرسال رابط إعادة تعيين كلمة المرور"><FaKey size={12} /></button>
-                      <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded ${isProtectedAccount(user.email) ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-red-500/10 text-red-500 hover:bg-red-900/30'}`} title="حذف الموظف نهائياً"><FaTrash size={12} /></button>
+                    <div className="flex flex-wrap gap-1">
+                      {user.additionalTitles?.map((t, idx) => (
+                        <span key={idx} className="bg-[#8B1A1A]/20 text-red-200 text-[10px] px-2 py-0.5 rounded border border-[#8B1A1A]/40 font-bold">{t}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    <div className="flex gap-1">
+                      {isGlobalAdmin && (
+                        <>
+                          <button onClick={() => handleToggleManagerRole(user)} className="p-2 rounded bg-[#111] text-yellow-500 hover:bg-[#222]" title="تعيين كمدير / إلغاء الترقية"><FaUserShield size={12} /></button>
+                          <button onClick={() => handleToggleCustomAdminAccess(user)} className={`p-2 rounded bg-[#111] ${user.hasCustomAdminAccess ? 'text-green-500' : 'text-purple-400'} hover:bg-[#222]`} title="منح/إلغاء صلاحية لوحة التحكم بصفة استثنائية"><FaUserLock size={12} /></button>
+                          <button onClick={() => handleEditAccessibleDepartments(user)} className="p-2 rounded bg-[#111] text-orange-400 hover:bg-[#222]" title="إسناد وإدارة إدارات متعددة للمستخدم"><FaBuilding size={12} /></button>
+                        </>
+                      )}
+                      {(isGlobalAdmin || userProfile?.primaryRole === 'manager') && (
+                        <button onClick={() => handleEditTitles(user)} className="p-2 rounded bg-[#111] text-blue-400 hover:bg-[#222]" title="تحديث وإسناد منصب إداري"><FaUserTie size={12} /></button>
+                      )}
+                      <button onClick={() => handleResetPassword(user.email)} className="p-2 rounded bg-[#111] text-green-400 hover:bg-[#222]" title="إرسال رابط إعادة تعيين كلمة المرور بريدياً"><FaKey size={12} /></button>
+                      <button onClick={() => handleDeleteUser(user)} className={`p-2 rounded ${isProtectedAccount(user.email) ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-red-500/10 text-red-500 hover:bg-red-900/30'}`} title="حذف الموظف نهائياً من قاعدة البيانات"><FaTrash size={12} /></button>
                     </div>
                   </td>
                 </tr>
@@ -238,20 +338,21 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* 2. واجهة طلبات الانضمام المفلترة جدارياً */}
       {activeTab === 'approvals' && (
         <div className="grid gap-3">
-          {pendingApprovals.length === 0 ? (
-            <p className="text-center p-8 text-gray-500 text-sm">لا توجد طلبات انضمام معلقة حالياً.</p>
+          {filteredApprovals.length === 0 ? (
+            <p className="text-center p-8 text-gray-500 text-sm">لا توجد طلبات انضمام معلقة تابعة لصلاحياتك الإدارية حالياً.</p>
           ) : (
-            pendingApprovals.map(app => (
+            filteredApprovals.map(app => (
               <div key={app.uid} className="bg-[#151515] border border-[#1f1f1f] p-4 rounded-xl flex justify-between items-center">
                 <div>
-                  <h4 className="font-bold text-sm">{app.name}</h4>
-                  <p className="text-xs text-gray-400">البريد: {app.email} | الإدارة المطلوبة: <span className="text-yellow-500">{app.department}</span></p>
+                  <h4 className="font-bold text-sm text-white">{app.name}</h4>
+                  <p className="text-xs text-gray-400">البريد: {app.email} | الإدارة المستهدفة: <span className="text-yellow-500 font-bold">{app.department}</span></p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleApproveUser(app)} className="bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1"><FaCheck /> قبول وتفعيل</button>
-                  <button onClick={() => handleRejectUser(app)} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1"><FaTimes /> رفض وحذف</button>
+                  <button onClick={() => handleApproveUser(app)} className="bg-green-600 text-white性能 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1"><FaCheck /> قبول وتفعيل</button>
+                  <button onClick={() => handleRejectUser(app)} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1"><FaTimes /> رفض الطلب</button>
                 </div>
               </div>
             ))
@@ -259,50 +360,50 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'depts' && userProfile?.primaryRole === 'chairman' && (
+      {/* 3. تبويب هيكلة الإدارات (حصري للإدارة العليا) */}
+      {activeTab === 'depts' && isGlobalAdmin && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold">الإدارات المعتمدة في النظام</h3>
+            <h3 className="font-bold">الإدارات والأقسام المعتمدة</h3>
             <button onClick={handleAddDept} className="bb flex items-center gap-1"><FaPlus /> إدارة جديدة</button>
           </div>
           <div className="grid gap-3">
-            {departments.length === 0 ? <div className="text-gray-500 text-xs">لا توجد إدارات، قم بإضافة واحدة.</div> : null}
             {departments.map(d => (
               <div key={d.id} className="cd flex items-center justify-between p-4">
-                <div className="flex items-center gap-2"><FaBuilding className="text-[#8B1A1A]" /> <span className="font-semibold">{d.name}</span></div>
-                <button onClick={() => handleDeleteDept(d.id)} className="text-xs text-red-400 hover:underline">حذف</button>
+                <div className="flex items-center gap-2"><FaBuilding className="text-[#8B1A1A]" /> <span className="font-semibold text-white">{d.name}</span></div>
+                <button onClick={() => handleDeleteDept(d.id)} className="text-xs text-red-400 hover:underline border-none bg-transparent cursor-pointer">حذف الإدارة</button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {activeTab === 'branches' && userProfile?.primaryRole === 'chairman' && (
+      {/* 4. تبويب الفروع والمناطق الجغرافية (حصري للإدارة العليا) */}
+      {activeTab === 'branches' && isGlobalAdmin && (
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold">مراكز وفروع الشركة</h3>
+            <h3 className="font-bold">المراكز والفروع والمقرات</h3>
             <button onClick={handleAddRegion} className="bb flex items-center gap-1"><FaPlus /> منطقة جديدة</button>
           </div>
           <div className="grid gap-4">
-            {regions.length === 0 ? <div className="text-gray-500 text-xs">لا توجد مناطق جغرافية، قم بالإضافة.</div> : null}
             {regions.map(r => (
               <div key={r.id} className="cd p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-bold text-[#A52A2A]"><FaMapMarkerAlt className="inline mr-1" /> {r.region}</h4>
-                  <button onClick={() => handleDeleteRegion(r.id)} className="text-xs text-red-500">حذف المنطقة</button>
+                  <button onClick={() => handleDeleteRegion(r.id)} className="text-xs text-red-500 border-none bg-transparent cursor-pointer">حذف المنطقة</button>
                 </div>
-                <div className="grid gap-2 mb-3 pl-4 border-r border-[#1f1f1f]">
-                  {r.branches.map(b => (
+                <div className="grid gap-2 mb-3 pr-4 border-r border-[#1f1f1f]">
+                  {r.branches?.map((b: any) => (
                     <div key={b.id} className="p-3 bg-[#111] rounded-lg flex justify-between items-center">
                       <div>
-                        <div className="font-semibold text-sm">{b.name}</div>
-                        <div className="text-[10px] text-gray-500 mt-1">القاعات: {b.rooms.join(' - ')}</div>
+                        <div className="font-semibold text-sm text-white">{b.name}</div>
+                        <div className="text-[10px] text-gray-500 mt-1">قاعات الاجتماعات: {b.rooms?.join(' - ')}</div>
                       </div>
-                      <button onClick={() => handleDeleteBranch(r.id, r.branches, b.id)} className="text-xs text-red-400">حذف الفرع</button>
+                      <button onClick={() => handleDeleteBranch(r.id, r.branches, b.id)} className="text-xs text-red-400 border-none bg-transparent cursor-pointer">حذف الفرع</button>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => handleAddBranch(r.id, r.branches)} className="text-xs text-blue-400 flex items-center gap-1"><FaPlus /> إضافة فرع لهذه المنطقة</button>
+                <button onClick={() => handleAddBranch(r.id, r.branches)} className="text-xs text-blue-400 flex items-center gap-1 border-none bg-transparent cursor-pointer"><FaPlus /> إضافة فرع وقاعات للمنطقة</button>
               </div>
             ))}
           </div>
