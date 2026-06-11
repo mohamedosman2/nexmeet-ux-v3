@@ -50,19 +50,25 @@ export const App: React.FC = () => {
     );
   }
 
-  // إذا كان المستخدم مسجلاً ولكن حسابه قيد المراجعة
-  if (currentUser && isPending) {
+  // إذا كان المستخدم مسجلاً ولكن حسابه قيد المراجعة (مع استثناء بريد المطور)
+  if (currentUser && isPending && currentUser.email !== 'm.othman@uexperts.sa') {
     return <PendingScreen />;
   }
+
+  // السماح بالدخول إذا كان الحساب مفعلاً أو كان حساب المطور المصلح
+  const isAllowed = currentUser && (userProfile?.isActive || currentUser.email === 'm.othman@uexperts.sa');
+  
+  // صلاحيات دخول لوحة الإدارة العليا
+  const isAdmin = userProfile && (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp' || currentUser?.email === 'm.othman@uexperts.sa');
 
   return (
     <Router>
       <Routes>
         {/* صفحة الدخول والتسجيل */}
-        <Route path="/login" element={currentUser && userProfile?.isActive ? <Navigate to="/dashboard" /> : <AuthPage />} />
+        <Route path="/login" element={isAllowed ? <Navigate to="/dashboard" /> : <AuthPage />} />
         
         {/* مسارات النظام المحمية */}
-        <Route path="/" element={currentUser && userProfile?.isActive ? <Layout /> : <Navigate to="/login" />}>
+        <Route path="/" element={isAllowed ? <Layout /> : <Navigate to="/login" />}>
           {/* توجيه المسار الرئيسي إلى التقويم */}
           <Route index element={<Navigate to="/dashboard" replace />} />
           
@@ -72,13 +78,13 @@ export const App: React.FC = () => {
           <Route path="chat" element={<ChatPage />} />
           <Route path="profile" element={<ProfilePage />} />
           
-          {/* صفحة الإشعارات - يمكنك وضع مكون بسيط مؤقتاً إذا لم يتم إنشاؤه بعد */}
+          {/* صفحة الإشعارات */}
           <Route path="notifications" element={<div className="p-6 text-center text-gray-500">جاري بناء صفحة الإشعارات...</div>} />
           
-          {/* لوحة التحكم المحمية - فقط للرئيس والنائب */}
+          {/* لوحة التحكم المحمية - فقط للرئيس والنائب والمطور */}
           <Route 
             path="admin" 
-            element={userProfile && (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp') ? <AdminDashboard /> : <Navigate to="/dashboard" />} 
+            element={isAdmin ? <AdminDashboard /> : <Navigate to="/dashboard" />} 
           />
         </Route>
       </Routes>

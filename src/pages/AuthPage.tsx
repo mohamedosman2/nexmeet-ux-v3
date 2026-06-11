@@ -89,7 +89,7 @@ export const AuthPage: React.FC = () => {
   }, [navigate]);
 
   // =========================================================
-  // 3. الدخول الأساسي (معدل لتخطي 2FA مؤقتاً وبدون مشاكل توجيه)
+  // 3. الدخول الأساسي بالبريد وكلمة المرور (بدون 2FA مؤقتاً)
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,27 +111,7 @@ export const AuthPage: React.FC = () => {
         }
       }
 
-      // =======================================================
-      // تم إيقاف الجزء الخاص بإرسال الرابط (2FA) لتجنب تجاوز الحصة اليومية
-      // متاح هنا كـ Comment للرجوع إليه مستقبلاً:
-      /*
-      const actionCodeSettings = {
-        url: window.location.origin + '/', 
-        handleCodeInApp: true,
-      };
-      
-      // ملاحظة: يتطلب استيراد sendSignInLinkToEmail مجدداً عند تفعيله
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem('emailForSignIn', email);
-      
-      await signOut(auth); 
-      
-      setIs2FAWaiting(true);
-      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول الآمن إلى بريدك، تفقد صندوق الوارد.');
-      */
-      // =======================================================
-
-      // تسجيل دخول مباشر وتوجيه سلس ونظيف للنظام
+      // تسجيل دخول مباشر وتوجيه سلس ونظيف للنظام للجميع بالبريد وكلمة المرور
       setSuccessMsg('تم تسجيل الدخول بنجاح! جاري التوجيه...');
       setTimeout(() => {
         navigate('/'); 

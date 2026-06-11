@@ -1,6 +1,6 @@
 // ==========================================
 // الجدار الناري والمصادقة (Auth Context)
-// كود كامل 100% بدون أي اختصار
+// تم إصلاح مشكلة حلقة التوجيه اللانهائية (التحديث المتزامن)
 // ==========================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -25,7 +25,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user);
         try {
           let profileData: UserProfile | null = null;
           const uidRef = doc(db, "users", user.uid);
@@ -62,10 +61,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           
+          // تحديث الحالات بالتوازي لمنع ثغرات التوجيه الزمنية
           setUserProfile(profileData);
+          setCurrentUser(user); 
+
         } catch (error) {
           console.error("AuthContext Critical Error:", error);
           setUserProfile(null);
+          setCurrentUser(null);
         }
       } else {
         setCurrentUser(null);
