@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
-  sendSignInLinkToEmail, 
+  // sendSignInLinkToEmail, ✅ تم التعليق
   isSignInWithEmailLink, 
   signInWithEmailLink,
   signOut,
