@@ -1,6 +1,6 @@
 // ==========================================
 // صفحة تسجيل الدخول (Auth Page)
-// تم إصلاح أخطاء الـ JSX وإزالة خيارات (الرابط السحري / SMS) حسب الطلب
+// تم إيقاف المصادقة الثنائية (2FA) مؤقتاً لتجنب استهلاك الحصة
 // ==========================================
 import React, { useState, useEffect } from 'react';
 import { auth, db } from '../config/firebase';
@@ -49,7 +49,7 @@ export const AuthPage: React.FC = () => {
   }, [currentUser, isPending]);
 
   // =========================================================
-  // 2. معالجة رابط التأكيد للمصادقة الثنائية
+  // 2. معالجة رابط التأكيد للمصادقة الثنائية (متروكة كما هي للرجوع لها لاحقاً)
   // =========================================================
   useEffect(() => {
     const handleEmailLink = async () => {
@@ -88,7 +88,7 @@ export const AuthPage: React.FC = () => {
   }, []);
 
   // =========================================================
-  // 3. الدخول الأساسي (كلمة مرور + رابط تأكيد)
+  // 3. الدخول الأساسي (معدل لتخطي 2FA مؤقتاً)
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,19 +97,25 @@ export const AuthPage: React.FC = () => {
     setLoading(true);
 
     try {
+      // 1. التحقق من البريد وكلمة المرور
       const userCred = await signInWithEmailAndPassword(auth, email, password);
       
+      // 2. جلب بيانات المستخدم من فايرستور
       const userDoc = await getDoc(doc(db, 'users', userCred.user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
         if (!userData.isActive && userData.email !== 'm.othman@uexperts.sa') {
           setErrorMsg('بيانات الدخول صحيحة، ولكن حسابك قيد المراجعة الإدارية. يرجى الانتظار.');
-          await signOut(auth);
+          await signOut(auth); // تسجيل خروج لأن الحساب غير مفعل
           setLoading(false);
           return;
         }
       }
 
+      // =======================================================
+      // تم إيقاف الجزء الخاص بإرسال الرابط (2FA) لتجنب تجاوز الحصة
+      // =======================================================
+      /*
       const actionCodeSettings = {
         url: window.location.origin + '/', 
         handleCodeInApp: true,
@@ -122,6 +128,13 @@ export const AuthPage: React.FC = () => {
       
       setIs2FAWaiting(true);
       setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول الآمن إلى بريدك، تفقد صندوق الوارد.');
+      */
+
+      // تسجيل دخول مباشر وتوجيه للنظام
+      setSuccessMsg('تم تسجيل الدخول بنجاح! جاري التوجيه...');
+      setTimeout(() => {
+        window.location.href = '/'; 
+      }, 1000);
       
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') setErrorMsg('بيانات الدخول غير صحيحة. تأكد من البريد وكلمة المرور.');
