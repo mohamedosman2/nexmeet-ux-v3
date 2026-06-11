@@ -1,9 +1,8 @@
 // ==========================================
 // صفحة تسجيل الدخول (Auth Page)
-// تم حل مشكلة التوجيه العالق (Bounce Back Loop) وتطبيق استماع تفاعلي للصلاحيات
+// تم تطبيق التوجيه الإجباري للمتصفح لمنع التعليق
 // ==========================================
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../config/firebase';
 import { 
   signInWithEmailAndPassword, 
@@ -21,9 +20,7 @@ const DEPARTMENTS = [
 ];
 
 export const AuthPage: React.FC = () => {
-  const navigate = useNavigate();
-  // 🔥 جلب حالة المستخدم مباشرة من جدار الحماية لمنع أي توجيه خاطئ 🔥
-  const { currentUser, userProfile, isPending } = useAuth();
+  const { currentUser, isPending } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,39 +35,30 @@ export const AuthPage: React.FC = () => {
   const [view, setView] = useState<'login' | 'register'>('login');
 
   // =========================================================
-  // 1. نظام التوجيه التلقائي الصارم (يمنع التعليق في صفحة الدخول)
-  // =========================================================
-  useEffect(() => {
-    if (currentUser && userProfile) {
-      if (userProfile.isActive) {
-        // بمجرد أن يكتمل تحميل الملف ويصبح مفعلاً، يتم نقلك للنظام فوراً وبلا رجعة
-        navigate('/', { replace: true });
-      }
-    }
-  }, [currentUser, userProfile, navigate]);
-
-  // =========================================================
-  // 2. معالجة الرابط السحري عند العودة من البريد
+  // 1. معالجة الرابط السحري عند العودة من البريد + التوجيه الإجباري
   // =========================================================
   useEffect(() => {
     const handleEmailLink = async () => {
+      // التحقق مما إذا كان الرابط الحالي هو رابط تسجيل دخول سحري
       if (isSignInWithEmailLink(auth, window.location.href)) {
         setLoading(true);
         let savedEmail = window.localStorage.getItem('emailForSignIn');
+        
+        // إذا كان يفتح من متصفح مختلف، نطلب منه البريد للتأكيد
         if (!savedEmail) {
-          savedEmail = window.prompt('يرجى تأكيد بريدك الإلكتروني لإكمال الدخول:');
+          savedEmail = window.prompt('يرجى تأكيد بريدك الإلكتروني لإكمال الدخول بأمان:');
         }
         
         try {
+          // تسجيل الدخول باستخدام الرابط
           await signInWithEmailLink(auth, savedEmail || '', window.location.href);
           window.localStorage.removeItem('emailForSignIn');
-          setSuccessMsg('تم التحقق بنجاح! يتم الآن مزامنة بياناتك ونقلك للنظام...');
+          setSuccessMsg('تم التحقق بنجاح! جاري نقلك للنظام...');
           
-          // تنظيف الرابط في المتصفح حتى لا يتم استخدامه مرة أخرى بالخطأ
-          window.history.replaceState(null, '', '/login');
-          
-          // 💡 ملاحظة: لا نحتاج لكتابة أمر توجيه هنا، لأن الـ useEffect الأول سيلتقط
-          // تغير حالة الـ currentUser وينقلك بقوة فور تحميل الملف الشخصي.
+          // 🔥 الحل الجذري: توجيه إجباري للمتصفح يكسر أي تعليق في React 🔥
+          setTimeout(() => {
+            window.location.href = '/'; 
+          }, 1500);
 
         } catch (err: any) {
           console.error(err);
@@ -84,7 +72,7 @@ export const AuthPage: React.FC = () => {
   }, []);
 
   // =========================================================
-  // 3. دالة تسجيل الدخول (التحقق من كلمة المرور ثم إرسال الرابط)
+  // 2. دالة تسجيل الدخول (التحقق من كلمة المرور ثم إرسال الرابط)
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,11 +102,10 @@ export const AuthPage: React.FC = () => {
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
       window.localStorage.setItem('emailForSignIn', email);
       
-      // إجبار النظام على تسجيل الخروج لضمان عدم الدخول إلا بالرابط
       await signOut(auth); 
       
       setIs2FAWaiting(true);
-      setSuccessMsg('كلمة المرور صحيحة. تم إرسال رابط الدخول النهائي إلى صندوق الوارد الخاص بك.');
+      setSuccessMsg('تم التحقق من كلمة المرور. أرسلنا رابط الدخول النهائي إلى بريدك الإلكتروني.');
       
     } catch (err: any) {
       if (err.code === 'auth/user-not-found') setErrorMsg('هذا البريد غير مسجل في النظام.');
@@ -131,7 +118,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // 4. إنشاء حساب موظف جديد
+  // 3. إنشاء حساب موظف جديد
   // =========================================================
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,10 +135,10 @@ export const AuthPage: React.FC = () => {
         department: department,
         primaryRole: 'employee',
         additionalTitles: [],
-        isActive: false // يحتاج موافقة الإدارة
+        isActive: false 
       });
       
-      await signOut(auth); // تسجيل خروج فوري لضمان بقائه في صفحة الانتظار
+      await signOut(auth); 
       
       setSuccessMsg('تم إنشاء الحساب بنجاح! يرجى انتظار تفعيل الإدارة لحسابك.');
       setView('login');
@@ -166,7 +153,7 @@ export const AuthPage: React.FC = () => {
   };
 
   // =========================================================
-  // واجهة حسابات "قيد المراجعة" (لمنع بقائهم عالقين في شاشة بيضاء)
+  // واجهة حسابات "قيد المراجعة" 
   // =========================================================
   if (currentUser && isPending) {
     return (
@@ -178,8 +165,8 @@ export const AuthPage: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-white mb-2">حسابك قيد المراجعة</h2>
           <p className="text-gray-400 text-sm mb-6">مرحباً بك في شركة UX. يرجى انتظار تفعيل حسابك من قبل مدير إدارتك أو الإدارة العليا للبدء في استخدام النظام.</p>
-          <button onClick={() => auth.signOut()} className="text-sm text-red-500 hover:text-red-400 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10 transition-colors">
-            تسجيل الخروج
+          <button onClick={() => { auth.signOut(); window.location.href = '/login'; }} className="text-sm text-red-500 hover:text-red-400 font-bold border border-red-500/30 px-6 py-2 rounded-lg hover:bg-red-500/10 transition-colors">
+            تسجيل الخروج والعودة
           </button>
         </div>
       </div>
@@ -187,7 +174,7 @@ export const AuthPage: React.FC = () => {
   }
 
   // =========================================================
-  // الواجهة الرئيسية (تسجيل الدخول / التسجيل)
+  // الواجهة الرئيسية
   // =========================================================
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden" style={{ background: '#0a0a0a', fontFamily: 'Cairo, sans-serif' }}>
