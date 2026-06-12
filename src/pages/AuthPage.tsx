@@ -4,11 +4,10 @@ import {
   signInWithEmailAndPassword, 
   isSignInWithEmailLink, 
   signInWithEmailLink,
-  signOut,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 
 const DEPARTMENTS = [
@@ -38,7 +37,6 @@ export const AuthPage: React.FC = () => {
   // =========================================================
   useEffect(() => {
     if (currentUser && !isPending) {
-      console.log('✅ تم اكتشاف مستخدم مسجل الدخول، جاري التوجيه إلى الرئيسية');
       window.location.href = '/';
     }
   }, [currentUser, isPending]);
@@ -78,7 +76,7 @@ export const AuthPage: React.FC = () => {
   }, []);
 
   // =========================================================
-  // 3. الدخول الأساسي - بدون أي شروط أو تحقق من isActive
+  // 3. الدخول الأساسي - بدون أي شروط أو تحقق
   // =========================================================
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,14 +85,13 @@ export const AuthPage: React.FC = () => {
     setLoading(true);
 
     try {
-      // فقط قم بتسجيل الدخول إلى Firebase Authentication
+      // تسجيل الدخول إلى Firebase Authentication
       await signInWithEmailAndPassword(auth, email, password);
       
-      // إذا وصلنا إلى هنا، تسجيل الدخول نجح 100%
+      // إذا وصلنا إلى هنا، تسجيل الدخول نجح
       setSuccessMsg('تم تسجيل الدخول بنجاح! جاري التوجيه...');
       
-      // لا نقوم بأي توجيه مباشر، useEffect سيتولى المهمة
-      // ولكن نضع مؤقت احتياطي لمدة 1 ثانية
+      // مؤقت احتياطي للتوجيه
       setTimeout(() => {
         if (auth.currentUser) {
           window.location.href = '/';
@@ -152,12 +149,11 @@ export const AuthPage: React.FC = () => {
         department: department,
         primaryRole: 'employee',
         additionalTitles: [],
-        isActive: true // تم التعديل: أي حساب جديد يكون نشطاً فوراً
+        isActive: true
       });
       
       setSuccessMsg('تم إنشاء الحساب بنجاح! جاري التوجيه...');
       
-      // بعد إنشاء الحساب، سيكون المستخدم مسجل الدخول تلقائياً
       setTimeout(() => {
         window.location.href = '/';
       }, 1500);
