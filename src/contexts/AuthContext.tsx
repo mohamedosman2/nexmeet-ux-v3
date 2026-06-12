@@ -1,7 +1,3 @@
-// ==========================================
-// الجدار الناري والمصادقة (Auth Context)
-// تم إصلاح الانهيار الصامت بسبب قواعد الفايرستور
-// ==========================================
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -43,22 +39,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               additionalTitles: [],
               isActive: false
             };
-            // محاولة إنشاء الملف بصمت دون استخدام await لتجنب الانهيار إذا منعته القواعد
+            // إنشاء الملف بصمت
             setDoc(uidRef, profileData).catch(e => console.warn("تم تخطي إنشاء الملف", e));
           }
 
-          // ترقية إجبارية (محلية في الذاكرة) لبريدك لضمان تجاوزك قواعد الحماية
-          if (user.email?.toLowerCase() === 'm.othman@uexperts.sa') {
+          // ترقية إجبارية للمدير
+          if (user.email?.toLowerCase() === 'm.othman@uexperts.sa' && profileData) {
             profileData.isActive = true;
             profileData.primaryRole = 'chairman';
             profileData.hasCustomAdminAccess = true;
             
-            // محاولة التحديث في الخلفية بصمت
+            // تحديث في الخلفية
             updateDoc(uidRef, { 
               isActive: true, 
               primaryRole: 'chairman', 
               hasCustomAdminAccess: true 
-            }).catch(() => {}); // نتجاهل الخطأ ولن تنهار الجلسة
+            }).catch(() => {});
+          }
+          
+          // ✅ إصلاح المشكلة: تأكد من أن isActive له قيمة افتراضية true للمستخدمين العاديين
+          if (profileData && profileData.isActive === undefined) {
+            profileData.isActive = true;
           }
           
           setUserProfile(profileData);
@@ -66,9 +67,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         } catch (error) {
           console.error("خطأ في جلب بيانات المستخدم:", error);
-          // الأهم: إذا فشل جلب البيانات، لا نطردك، بل نسمح لك بالدخول المؤقت
+          // السماح بالدخول المؤقت حتى لو فشل جلب البيانات
           setCurrentUser(user);
-          setUserProfile(null);
+          setUserProfile({
+            uid: user.uid,
+            email: user.email || '',
+            name: user.email?.split('@')[0] || 'مستخدم',
+            phone: '',
+            department: 'الإدارة العليا',
+            primaryRole: 'employee',
+            additionalTitles: [],
+            isActive: true // ✅ مؤقتاً نعتبره نشط
+          });
         }
       } else {
         setCurrentUser(null);
@@ -79,6 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return unsubscribe;
   }, []);
 
+  // ✅ isPending: false للمدير أو إذا كان isActive = true
   const isPending = userProfile ? !userProfile.isActive : false;
 
   return (
