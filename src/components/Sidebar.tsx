@@ -1,163 +1,376 @@
-// ==========================================
-// ملف القائمة الجانبية (Sidebar)
-// يتحكم ديناميكياً في الروابط المعروضة بناءً على الصلاحيات المركبة الجديدة
-// ==========================================
+// src/components/Sidebar.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { auth, db } from '../config/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { useAuth } from '../contexts/AuthContext';
-import { FaCalendarAlt, FaTasks, FaVideo, FaComments, FaBell, FaUserCog, FaShieldAlt, FaSignOutAlt } from 'react-icons/fa';
+import { useAuth, usePermissions } from '../contexts/AuthContext';
+import { 
+  FaCalendarAlt, 
+  FaTasks, 
+  FaVideo, 
+  FaComments, 
+  FaBell, 
+  FaUserCog, 
+  FaShieldAlt, 
+  FaSignOutAlt,
+  FaChartLine,
+  FaUsers,
+  FaBuilding,
+  FaFileAlt,
+  FaQuestionCircle,
+  FaRegLightbulb,
+  FaCog,
+  FaHome,
+  FaTimes
+} from 'react-icons/fa';
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  collapsed?: boolean;
+  isMobile?: boolean;
+  onClose?: () => void;
+}
+
+interface MenuItem {
+  id: string;
+  path: string;
+  icon: React.ReactNode;
+  label: string;
+  showBadge?: boolean;
+  roles?: ('chairman' | 'vp' | 'manager' | 'employee')[];
+  permissions?: string[];
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, isMobile = false, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userProfile } = useAuth();
-  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const { userProfile, unreadNotificationsCount, logout } = useAuth();
+  const { canAccessAdminPanel, isTopManagement, isManager } = usePermissions();
+  
+  const [activeItem, setActiveItem] = useState<string>('');
 
-  // استماع مباشر في الوقت الفعلي للإشعارات غير المقروءة الخاصة بالمستخدم من السحابة
+  // تحديث العنصر النشط بناءً على المسار الحالي
   useEffect(() => {
-    if (!userProfile?.uid) return;
-    
-    const q = query(
-      collection(db, 'notifications'),
-      where('targetUid', '==', userProfile.uid),
-      where('isRead', '==', false)
-    );
+    const path = location.pathname;
+    if (path === '/dashboard' || path === '/calendar') setActiveItem('calendar');
+    else if (path === '/tasks') setActiveItem('tasks');
+    else if (path === '/meetings') setActiveItem('meetings');
+    else if (path === '/chat') setActiveItem('chat');
+    else if (path === '/notifications') setActiveItem('notifications');
+    else if (path === '/profile') setActiveItem('profile');
+    else if (path === '/admin') setActiveItem('admin');
+    else if (path === '/users') setActiveItem('users');
+    else if (path === '/departments') setActiveItem('departments');
+    else if (path === '/reports') setActiveItem('reports');
+    else setActiveItem('');
+  }, [location.pathname]);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setUnreadCount(snapshot.size);
-    }, (error) => {
-      console.error("Real-time notifications counter error:", error);
-    });
-
-    return unsubscribe;
-  }, [userProfile?.uid]);
-
-  // دالة معالجة تسجيل الخروج السحابي
-  const handleLogout = async () => {
-    try {
-      await auth.signOut();
-      navigate('/login');
-    } catch (error) {
-      console.error("Logout operations failed:", error);
+  // قائمة عناصر القائمة
+  const menuItems: MenuItem[] = [
+    {
+      id: 'calendar',
+      path: '/dashboard',
+      icon: <FaCalendarAlt size={18} />,
+      label: 'التقويم',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'tasks',
+      path: '/tasks',
+      icon: <FaTasks size={18} />,
+      label: 'المهام',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'meetings',
+      path: '/meetings',
+      icon: <FaVideo size={18} />,
+      label: 'الاجتماعات',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'chat',
+      path: '/chat',
+      icon: <FaComments size={18} />,
+      label: 'المحادثات',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'notifications',
+      path: '/notifications',
+      icon: <FaBell size={18} />,
+      label: 'الإشعارات',
+      showBadge: true,
+      roles: ['chairman', 'vp', 'manager', 'employee']
     }
+  ];
+
+  // قائمة عناصر الإدارة (تظهر فقط للمديرين والإدارة العليا)
+  const adminItems: MenuItem[] = [
+    { id: 'divider1', path: '', icon: <></>, label: '', type: 'divider' },
+    {
+      id: 'admin',
+      path: '/admin',
+      icon: <FaShieldAlt size={18} />,
+      label: 'لوحة التحكم',
+      roles: ['chairman', 'vp', 'manager'],
+      permissions: ['admin']
+    },
+    {
+      id: 'users',
+      path: '/users',
+      icon: <FaUsers size={18} />,
+      label: 'المستخدمين',
+      roles: ['chairman', 'vp', 'manager'],
+      permissions: ['admin']
+    },
+    {
+      id: 'departments',
+      path: '/departments',
+      icon: <FaBuilding size={18} />,
+      label: 'الإدارات',
+      roles: ['chairman', 'vp'],
+      permissions: ['admin']
+    },
+    {
+      id: 'reports',
+      path: '/reports',
+      icon: <FaChartLine size={18} />,
+      label: 'التقارير',
+      roles: ['chairman', 'vp', 'manager'],
+      permissions: ['admin']
+    }
+  ];
+
+  // قائمة عناصر إضافية
+  const extraItems: MenuItem[] = [
+    { id: 'divider2', path: '', icon: <></>, label: '', type: 'divider' },
+    {
+      id: 'profile',
+      path: '/profile',
+      icon: <FaUserCog size={18} />,
+      label: 'الملف الشخصي',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'help',
+      path: '/help',
+      icon: <FaQuestionCircle size={18} />,
+      label: 'المساعدة',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'suggestions',
+      path: '/suggestions',
+      icon: <FaRegLightbulb size={18} />,
+      label: 'اقتراحات',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    },
+    {
+      id: 'settings',
+      path: '/settings',
+      icon: <FaCog size={18} />,
+      label: 'الإعدادات',
+      roles: ['chairman', 'vp', 'manager', 'employee']
+    }
+  ];
+
+  // دالة للتحقق مما إذا كان العنصر مسموحاً به للمستخدم الحالي
+  const isMenuItemAllowed = (item: MenuItem): boolean => {
+    if (!userProfile) return false;
+    
+    // إذا كان العنصر مقسماً (divider)
+    if (item.type === 'divider') return true;
+    
+    // التحقق من الأدوار
+    if (item.roles && !item.roles.includes(userProfile.primaryRole)) {
+      // إذا كان المستخدم من الإدارة العليا وله صلاحية الوصول
+      if (!isTopManagement && !isManager) return false;
+    }
+    
+    // التحقق من الصلاحيات الخاصة
+    if (item.permissions) {
+      if (item.permissions.includes('admin') && !canAccessAdminPanel) return false;
+    }
+    
+    return true;
   };
 
-  // معالجة الألقاب والرتب الإدارية لتعرض بالكامل أسفل القائمة الجانبية
+  // تصفية العناصر المسموحة
+  const visibleMenuItems = menuItems.filter(isMenuItemAllowed);
+  const visibleAdminItems = adminItems.filter(isMenuItemAllowed);
+  const visibleExtraItems = extraItems.filter(isMenuItemAllowed);
+
+  // الحصول على الحروف الأولى للاسم
+  const getInitials = (name: string): string => {
+    return name.split(' ').map(w => w[0]).join('').slice(0, 2);
+  };
+
+  // الحصول على عرض الدور
   const getRoleDisplay = () => {
     if (!userProfile) return 'جاري التحميل...';
     
-    const titles = userProfile.additionalTitles && userProfile.additionalTitles.length > 0
+    const titles = userProfile.additionalTitles?.length > 0
       ? userProfile.additionalTitles.join(' / ')
       : '';
     
     let baseRole = 'موظف';
     if (userProfile.primaryRole === 'chairman') baseRole = 'رئيس مجلس الإدارة';
-    else if (userProfile.primaryRole === 'vp') baseRole = 'نائب رئيس';
+    else if (userProfile.primaryRole === 'vp') baseRole = 'نائب رئيس مجلس الإدارة';
     else if (userProfile.primaryRole === 'manager') baseRole = 'مدير إدارة';
 
     return titles ? `${baseRole} (${titles})` : baseRole;
   };
 
-  // التحقق الدقيق والمنظم لفتح صلاحية ظهور لوحة التحكم (الرئيس، النائب، المدير، أو منصب استثنائي)
-  const canAccessAdminPanel = (): boolean => {
-    if (!userProfile) return false;
-    if (userProfile.primaryRole === 'chairman' || userProfile.primaryRole === 'vp' || userProfile.primaryRole === 'manager') {
-      return true;
-    }
-    // تفعيل الوصول الاستثنائي للموظف أو المستشار إذا منحه الرئيس/النائب الصلاحية
-    if (userProfile.hasCustomAdminAccess === true) {
-      return true;
-    }
-    return false;
-  };
-
-  // مصفوفة الروابط الجانبية الثابتة والمطابقة لتصميمك الأصلي
-  const menuItems = [
-    { id: 'calendar', path: '/dashboard', icon: <FaCalendarAlt style={{ width: '20px', textAlign: 'center' }} />, label: 'التقويم' },
-    { id: 'tasks', path: '/tasks', icon: <FaTasks style={{ width: '20px', textAlign: 'center' }} />, label: 'المهام' },
-    { id: 'meetings', path: '/meetings', icon: <FaVideo style={{ width: '20px', textAlign: 'center' }} />, label: 'الاجتماعات' },
-    { id: 'chat', path: '/chat', icon: <FaComments style={{ width: '20px', textAlign: 'center' }} />, label: 'المحادثات' },
-    { id: 'notifications', path: '/notifications', icon: <FaBell style={{ width: '20px', textAlign: 'center' }} />, label: 'الإشعارات', showBadge: true },
-    { id: 'divider', type: 'divider' },
-    { id: 'profile', path: '/profile', icon: <FaUserCog style={{ width: '20px', textAlign: 'center' }} />, label: 'الملف الشخصي' }
-  ];
-
-  // حقن رابط لوحة التحكم برمجياً في حال توافر الصلاحيات الصارمة
-  if (canAccessAdminPanel()) {
-    menuItems.push({ id: 'admin', path: '/admin', icon: <FaShieldAlt style={{ width: '20px', textAlign: 'center' }} />, label: 'لوحة التحكم', showBadge: false });
-  }
-
-  // استخراج الحروف الأولى للاسم في حال غياب الصورة الشخصية
-  const getInitials = (fullName: string): string => {
-    return fullName.split(' ').map(w => w[0]).join('').slice(0, 2);
-  };
-
   return (
-    <aside id="side" className="w-64 flex flex-col h-full flex-shrink-0 overflow-y-auto" style={{ background: 'var(--bg2)', borderLeft: '1px solid var(--bd)' }}>
-      {/* الشعار الأصلي المعتمد بقيم الـ SVG الكاملة دون تعديل */}
-      <div className="p-4" style={{ borderBottom: '1px solid var(--bd)' }}>
-        <svg viewBox="0 0 340 70" className="w-48 mx-auto">
-          <path d="M8 35 Q30 5,55 35 Q30 65,8 35" fill="#8B1A1A"/>
-          <path d="M285 35 Q307 5,332 35 Q307 65,285 35" fill="#8B1A1A"/>
-          <path d="M50 35 Q72 12,95 35 Q72 58,50 35" fill="#8B1A1A" opacity=".4"/>
-          <path d="M245 35 Q267 12,290 35 Q267 58,245 35" fill="#8B1A1A" opacity=".4"/>
-          <text x="170" y="42" textAnchor="middle" fill="#1E3A6E" fontFamily="Cairo" fontWeight="800" fontSize="24">United Experts</text>
-        </svg>
+    <aside 
+      className={`flex flex-col h-full flex-shrink-0 transition-all duration-300 ${
+        collapsed ? 'w-20' : 'w-64'
+      }`}
+      style={{ background: 'var(--bg2)', borderLeft: '1px solid var(--bd)' }}
+    >
+      {/* زر الإغلاق للجوال */}
+      {isMobile && (
+        <div className="flex justify-end p-3">
+          <button onClick={onClose} className="icon-btn">
+            <FaTimes />
+          </button>
+        </div>
+      )}
+
+      {/* الشعار */}
+      <div className={`p-4 ${collapsed ? 'text-center' : ''}`} style={{ borderBottom: '1px solid var(--bd)' }}>
+        {!collapsed ? (
+          <svg viewBox="0 0 340 70" className="w-full max-w-[160px] mx-auto">
+            <path d="M8 35 Q30 5,55 35 Q30 65,8 35" fill="#8B1A1A"/>
+            <path d="M285 35 Q307 5,332 35 Q307 65,285 35" fill="#8B1A1A"/>
+            <path d="M50 35 Q72 12,95 35 Q72 58,50 35" fill="#8B1A1A" opacity="0.4"/>
+            <path d="M245 35 Q267 12,290 35 Q267 58,245 35" fill="#8B1A1A" opacity="0.4"/>
+            <text x="170" y="42" textAnchor="middle" fill="#1E3A6E" fontFamily="Cairo" fontWeight="800" fontSize="24">
+              United Experts
+            </text>
+          </svg>
+        ) : (
+          <div className="w-10 h-10 mx-auto rounded-full flex items-center justify-center" style={{ background: 'var(--brand-primary)' }}>
+            <span className="text-white font-bold text-lg">U</span>
+          </div>
+        )}
       </div>
 
-      {/* قائمة عناصر الملاحة */}
-      <nav id="sNav" className="flex-1 py-3">
-        {menuItems.map((item, index) => {
-          if (item.type === 'divider') {
-            return <div key={`divider-${index}`} style={{ borderTop: '1px solid var(--bd)', margin: '8px 0' }}></div>;
-          }
+      {/* قائمة التنقل */}
+      <nav className="flex-1 py-4 overflow-y-auto">
+        {/* العناصر الرئيسية */}
+        {visibleMenuItems.map((item) => (
+          <MenuItemComponent
+            key={item.id}
+            item={item}
+            active={activeItem === item.id}
+            collapsed={collapsed}
+            onClick={() => navigate(item.path)}
+            badgeCount={item.showBadge ? unreadNotificationsCount : undefined}
+          />
+        ))}
 
-          const isActive = location.pathname === item.path;
-          return (
-            <div
+        {/* العناصر الإدارية */}
+        {visibleAdminItems.map((item) => (
+          item.type === 'divider' ? (
+            <div key={item.id} className={`my-2 ${collapsed ? 'mx-2' : 'mx-4'}`} style={{ borderTop: '1px solid var(--bd)' }} />
+          ) : (
+            <MenuItemComponent
               key={item.id}
-              onClick={() => navigate(item.path!)}
-              className={`si ${isActive ? 'ac' : ''}`}
-            >
-              {item.icon}
-              <span style={{ flex: 1 }}>{item.label}</span>
-              {item.showBadge && unreadCount > 0 && (
-                <span id="nBS" className="flex bg-[#EF4444] text-white text-[10px] rounded-full w-5 h-5 items-center justify-center font-bold">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </div>
-          );
-        })}
+              item={item}
+              active={activeItem === item.id}
+              collapsed={collapsed}
+              onClick={() => navigate(item.path)}
+            />
+          )
+        ))}
+
+        {/* العناصر الإضافية */}
+        {visibleExtraItems.map((item) => (
+          item.type === 'divider' ? (
+            <div key={item.id} className={`my-2 ${collapsed ? 'mx-2' : 'mx-4'}`} style={{ borderTop: '1px solid var(--bd)' }} />
+          ) : (
+            <MenuItemComponent
+              key={item.id}
+              item={item}
+              active={activeItem === item.id}
+              collapsed={collapsed}
+              onClick={() => navigate(item.path)}
+            />
+          )
+        ))}
       </nav>
 
-      {/* الهيكل السفلي لبيانات المستخدم المسجل حالياً متوافق مع كود HTML القديم */}
-      <div id="sUsr" className="p-4 flex items-center gap-3 cursor-pointer" style={{ borderTop: '1px solid var(--bd)' }} onClick={() => navigate('/profile')}>
-        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#8B1A1A', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '12px', fontWeight: 700, overflow: 'hidden' }}>
+      {/* معلومات المستخدم */}
+      <div 
+        className={`p-4 flex items-center gap-3 cursor-pointer transition-all hover:bg-hv ${collapsed ? 'justify-center' : ''}`}
+        style={{ borderTop: '1px solid var(--bd)' }}
+        onClick={() => navigate('/profile')}
+      >
+        <div 
+          className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+          style={{ background: 'var(--brand-primary)' }}
+        >
           {userProfile?.avatarUrl ? (
-            <img src={userProfile.avatarUrl} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} alt="Avatar" />
+            <img src={userProfile.avatarUrl} className="w-full h-full object-cover rounded-full" alt="Avatar" />
           ) : (
             userProfile?.name ? getInitials(userProfile.name) : 'UX'
           )}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {userProfile?.name || 'جاري المزامنة...'}
+        
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold truncate">{userProfile?.name || 'جاري التحميل...'}</div>
+            <div className="text-[10px] text-gray-500 truncate">{getRoleDisplay()}</div>
+            <div className="text-[9px] text-brand-light truncate">{userProfile?.department}</div>
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--tx2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${getRoleDisplay()} - ${userProfile?.department}`}>
-            {getRoleDisplay()} - {userProfile?.department}
-          </div>
-        </div>
-        <FaSignOutAlt 
-          id="loI" 
-          className="cursor-pointer text-lg hover:text-red-500 transition-colors" 
-          style={{ color: 'var(--tx2)' }} 
-          title="تسجيل الخروج من النظام" 
-          onClick={(e) => { e.stopPropagation(); handleLogout(); }} 
-        />
+        )}
+        
+        {!collapsed && (
+          <FaSignOutAlt 
+            className="text-gray-500 hover:text-red-500 transition-colors cursor-pointer flex-shrink-0"
+            onClick={(e) => { e.stopPropagation(); logout(); }}
+            title="تسجيل الخروج"
+          />
+        )}
       </div>
     </aside>
+  );
+};
+
+// ==========================================
+// مكون عنصر القائمة
+// ==========================================
+
+interface MenuItemComponentProps {
+  item: MenuItem;
+  active: boolean;
+  collapsed: boolean;
+  onClick: () => void;
+  badgeCount?: number;
+}
+
+const MenuItemComponent: React.FC<MenuItemComponentProps> = ({ 
+  item, 
+  active, 
+  collapsed, 
+  onClick, 
+  badgeCount 
+}) => {
+  return (
+    <div
+      onClick={onClick}
+      className={`sidebar-item ${active ? 'active' : ''} ${collapsed ? 'justify-center' : ''}`}
+      title={collapsed ? item.label : undefined}
+    >
+      <div className="relative">
+        {item.icon}
+        {badgeCount !== undefined && badgeCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-[9px] rounded-full w-4 h-4 flex items-center justify-center">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
+      </div>
+      {!collapsed && <span className="flex-1">{item.label}</span>}
+    </div>
   );
 };

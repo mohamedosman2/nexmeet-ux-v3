@@ -1,0 +1,310 @@
+// firestore.rules
+
+rules_version = '2';
+
+// ==========================================
+// دوال مساعدة للتحقق من الصلاحيات
+// ==========================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // دوال مساعدة (Helper Functions)
+    // ==========================================
+    
+    // التحقق من أن المستخدم مسجل الدخول
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // الحصول على UID المستخدم الحالي
+    function getCurrentUserId() {
+      return request.auth.uid;
+    }
+    
+    // التحقق من أن المستخدم هو نفسه
+    function isCurrentUser(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // الحصول على بيانات المستخدم من قاعدة البيانات
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+    
+    // التحقق من أن المستخدم رئيس مجلس الإدارة
+    function isChairman() {
+      let user = getUserData(request.auth.uid);
+      return user != null && user.primaryRole == 'chairman';
+    }
+    
+    // التحقق من أن المستخدم نائب رئيس
+    function isVP() {
+      let user = getUserData(request.auth.uid);
+      return user != null && user.primaryRole == 'vp';
+    }
+    
+    // التحقق من أن المستخدم مدير
+    function isManager() {
+      let user = getUserData(request.auth.uid);
+      return user != null && user.primaryRole == 'manager';
+    }
+    
+    // التحقق من أن المستخدم من الإدارة العليا (رئيس أو نائب)
+    function isTopManagement() {
+      return isChairman() || isVP();
+    }
+    
+    // التحقق من أن المستخدم لديه صلاحية وصول إلى لوحة التحكم
+    function hasAdminAccess() {
+      let user = getUserData(request.auth.uid);
+      return user != null && (
+        user.primaryRole == 'chairman' ||
+        user.primaryRole == 'vp' ||
+        user.primaryRole == 'manager' ||
+        user.hasCustomAdminAccess == true
+      );
+    }
+    
+    // التحقق من أن المستخدم يمكنه إدارة إدارة معينة
+    function canManageDepartment(departmentName) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      if (isTopManagement()) return true;
+      if (user.primaryRole == 'manager' && user.department == departmentName) return true;
+      if (user.accessibleDepartments != null && departmentName in user.accessibleDepartments) return true;
+      return false;
+    }
+    
+    // التحقق من أن المستخدم يمكنه رؤية مهمة معينة
+    function canViewTask(taskData) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      if (isTopManagement()) return true;
+      if (taskData.isPublic == true && taskData.department == user.department) return true;
+      if (taskData.assigneesUids != null && taskData.assigneesUids.contains(request.auth.uid)) return true;
+      if (taskData.mentionsUids != null && taskData.mentionsUids.contains(request.auth.uid)) return true;
+      if (taskData.createdByUid == request.auth.uid) return true;
+      return false;
+    }
+    
+    // التحقق من أن المستخدم يمكنه تعديل مهمة معينة
+    function canEditTask(taskData) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      if (isTopManagement()) return true;
+      if (taskData.createdByUid == request.auth.uid) return true;
+      return false;
+    }
+    
+    // التحقق من أن المستخدم يمكنه رؤية اجتماع معين
+    function canViewMeeting(meetingData) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      if (isTopManagement()) return true;
+      if (meetingData.isPublic == true) return true;
+      if (meetingData.attendeesUids != null && meetingData.attendeesUids.contains(request.auth.uid)) return true;
+      if (meetingData.mentionsUids != null && meetingData.mentionsUids.contains(request.auth.uid)) return true;
+      if (meetingData.createdByUid == request.auth.uid) return true;
+      return false;
+    }
+    
+    // التحقق من أن المستخدم يمكنه تعديل اجتماع معين
+    function canEditMeeting(meetingData) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      if (isTopManagement()) return true;
+      if (meetingData.createdByUid == request.auth.uid) return true;
+      return false;
+    }
+    
+    // التحقق من أن المستخدم يمكنه رؤية رسالة في المحادثة
+    function canViewMessage(messageData) {
+      let user = getUserData(request.auth.uid);
+      if (user == null) return false;
+      // التحقق من أن المستخدم عضو في مجموعة المحادثة
+      let groupData = get(/databases/$(database)/documents/chatGroups/$(messageData.groupId)).data;
+      return groupData != null && groupData.membersUids.contains(request.auth.uid);
+    }
+    
+    // التحقق من أن المستخدم يمكنه إرسال رسالة في المحادثة
+    function canSendMessage(groupId) {
+      let groupData = get(/databases/$(database)/documents/chatGroups/$(groupId)).data;
+      return groupData != null && groupData.membersUids.contains(request.auth.uid);
+    }
+    
+    // ==========================================
+    // قواعد مجموعة المستخدمين (users)
+    // ==========================================
+    
+    match /users/{userId} {
+      // قراءة: يمكن للمستخدم قراءة بياناته، أو الإدارة العليا قراءة الجميع
+      allow read: if isAuthenticated() && (
+        isCurrentUser(userId) ||
+        isTopManagement() ||
+        (isManager() && resource.data.department == getUserData(request.auth.uid).department)
+      );
+      
+      // إنشاء: يمكن إنشاء مستخدم جديد فقط (أثناء التسجيل)
+      allow create: if request.auth.uid == userId;
+      
+      // تحديث: يمكن للمستخدم تحديث بياناته، أو الإدارة العليا تحديث أي مستخدم
+      allow update: if isAuthenticated() && (
+        isCurrentUser(userId) ||
+        isTopManagement()
+      );
+      
+      // حذف: فقط الإدارة العليا يمكنها حذف المستخدمين (مع استثناء الحسابات المحمية)
+      allow delete: if isTopManagement() && 
+        resource.data.email != 'm.othman@uexperts.sa' && 
+        resource.data.email != 'mohd@uexperts.sa' &&
+        resource.data.email != 'ali@uexperts.sa';
+    }
+    
+    // ==========================================
+    // قواعد مجموعة طلبات الانضمام (joinRequests)
+    // ==========================================
+    
+    match /joinRequests/{requestId} {
+      allow read: if isAuthenticated() && (
+        isTopManagement() ||
+        (isManager() && resource.data.department == getUserData(request.auth.uid).department)
+      );
+      
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && (
+        isTopManagement() ||
+        (isManager() && resource.data.department == getUserData(request.auth.uid).department)
+      );
+      
+      allow delete: if isTopManagement();
+    }
+    
+    // ==========================================
+    // قواعد مجموعة الإدارات (departments)
+    // ==========================================
+    
+    match /departments/{deptId} {
+      allow read: if isAuthenticated();
+      
+      allow create: if isTopManagement();
+      
+      allow update: if isTopManagement();
+      
+      allow delete: if isTopManagement() && resource.data.name != 'الإدارة العليا';
+    }
+    
+    // ==========================================
+    // قواعد مجموعة الفروع (branches)
+    // ==========================================
+    
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      
+      allow create, update, delete: if isTopManagement();
+    }
+    
+    // ==========================================
+    // قواعد مجموعة المهام (tasks)
+    // ==========================================
+    
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated() && canViewTask(resource.data);
+      
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && canEditTask(resource.data);
+      
+      allow delete: if isAuthenticated() && canEditTask(resource.data);
+    }
+    
+    // ==========================================
+    // قواعد مجموعة الاجتماعات (meetings)
+    // ==========================================
+    
+    match /meetings/{meetingId} {
+      allow read: if isAuthenticated() && canViewMeeting(resource.data);
+      
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && canEditMeeting(resource.data);
+      
+      allow delete: if isAuthenticated() && canEditMeeting(resource.data);
+    }
+    
+    // ==========================================
+    // قواعد مجموعات المحادثات (chatGroups)
+    // ==========================================
+    
+    match /chatGroups/{groupId} {
+      allow read: if isAuthenticated() && resource.data.membersUids.contains(request.auth.uid);
+      
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && (
+        resource.data.createdByUid == request.auth.uid ||
+        isTopManagement()
+      );
+      
+      allow delete: if isTopManagement();
+    }
+    
+    // ==========================================
+    // قواعد الرسائل (messages)
+    // ==========================================
+    
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && canViewMessage(resource.data);
+      
+      allow create: if isAuthenticated() && canSendMessage(request.resource.data.groupId);
+      
+      allow update: if isAuthenticated() && (
+        resource.data.fromUid == request.auth.uid ||
+        isTopManagement()
+      );
+      
+      allow delete: if isAuthenticated() && (
+        resource.data.fromUid == request.auth.uid ||
+        isTopManagement()
+      );
+    }
+    
+    // ==========================================
+    // قواعد الإشعارات (notifications)
+    // ==========================================
+    
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && resource.data.targetUid == request.auth.uid;
+      
+      allow create: if isAuthenticated();
+      
+      allow update: if isAuthenticated() && resource.data.targetUid == request.auth.uid;
+      
+      allow delete: if isAuthenticated() && resource.data.targetUid == request.auth.uid;
+    }
+    
+    // ==========================================
+    // قواعد إعدادات المستخدم (userSettings)
+    // ==========================================
+    
+    match /userSettings/{userId} {
+      allow read: if isAuthenticated() && isCurrentUser(userId);
+      
+      allow create, update: if isAuthenticated() && isCurrentUser(userId);
+      
+      allow delete: if isAuthenticated() && isCurrentUser(userId);
+    }
+    
+    // ==========================================
+    // قواعد النظام (systemSettings) - للإدارة العليا فقط
+    // ==========================================
+    
+    match /systemSettings/{settingId} {
+      allow read: if isAuthenticated();
+      
+      allow create, update, delete: if isTopManagement();
+    }
+  }
+}
