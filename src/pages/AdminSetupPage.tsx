@@ -792,33 +792,33 @@ export const AdminSetupPage: React.FC = () => {
                   <th className="text-right p-2">الإدارة</th>
                 </tr>
               </thead>
-              <tbody>
-                {TASKS_DATA.map((task, idx) => (
-                  <tr key={idx} className="border-b" style={{ borderColor: 'var(--bd)' }}>
-                    <td className="p-2 text-center text-gray-500">{idx + 1}</td>
-                    <td className="p-2">{task.title}</td>
-                    <td className="p-2 text-gray-500">{task.date}</td>
-                    <td className="p-2 text-gray-500">{task.time}</td>
-                    <td className="p-2">
-                      <span className={`badge text-xs ${
-                        task.priority === 'high' ? 'badge-danger' :
-                        task.priority === 'medium' ? 'badge-warning' : 'badge-success'
-                      }`}>
-                        {task.priority === 'high' ? 'عالية' : task.priority === 'medium' ? 'متوسطة' : 'منخفضة'}
-                      </span>
-                    </td>
-                    <td className="p-2">
-                      <span className={`badge text-xs ${
-                        task.status === 'done' ? 'badge-success' :
-                        task.status === 'progress' ? 'badge-info' : 'badge'
-                      }`}>
-                        {task.status === 'done' ? 'مكتملة' : task.status === 'progress' ? 'جارية' : 'لم تبدأ'}
-                      </span>
-                    </td>
-                    <td className="p-2">{task.department}</td>
-                  </table>
-                ))}
-              </tbody>
+<tbody>
+  {TASKS_DATA.map((task, idx) => (
+    <tr key={idx} className="border-b" style={{ borderColor: 'var(--bd)' }}>
+      <td className="p-2 text-center text-gray-500">{idx + 1}</td>
+      <td className="p-2">{task.title}</td>
+      <td className="p-2 text-gray-500">{task.date}</td>
+      <td className="p-2 text-gray-500">{task.time}</td>
+      <td className="p-2">
+        <span className={`badge text-xs ${
+          task.priority === 'high' ? 'badge-danger' :
+          task.priority === 'medium' ? 'badge-warning' : 'badge-success'
+        }`}>
+          {task.priority === 'high' ? 'عالية' : task.priority === 'medium' ? 'متوسطة' : 'منخفضة'}
+        </span>
+      </td>
+      <td className="p-2">
+        <span className={`badge text-xs ${
+          task.status === 'done' ? 'badge-success' :
+          task.status === 'progress' ? 'badge-info' : 'badge'
+        }`}>
+          {task.status === 'done' ? 'مكتملة' : task.status === 'progress' ? 'جارية' : 'لم تبدأ'}
+        </span>
+      </td>
+      <td className="p-2">{task.department}</td>
+    </tr>   // ✅ الصح
+  ))}
+</tbody>
             </table>
           </div>
         </div>
