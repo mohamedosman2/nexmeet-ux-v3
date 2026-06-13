@@ -1,21 +1,8 @@
-// أضف هذا الاستيراد مع باقي الاستيرادات في بداية الملف
-import { AdminSetupPage } from './pages/AdminSetupPage';
-
-// أضف هذا المسار داخل Routes (قبل Route path="*")
-<Route path="/setup" element={<AdminSetupPage />} />
-import { seedDatabase } from './services/seedUsers';
-
-// أضف هذا الزر في return (مؤقتاً)
-<button 
-  onClick={() => seedDatabase()}
-  style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, background: '#8B1A1A', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
->
-  تهيئة قاعدة البيانات
-</button>
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
+import { AdminSetupPage } from './pages/AdminSetupPage';
 
 // ==========================================
 // تحميل كسول (Lazy Loading) للصفحات لتحسين الأداء
@@ -175,22 +162,18 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { currentUser, userProfile, loading, isPending, canAccessAdminPanel, isTopManagement } = useAuth();
   const location = useLocation();
 
-  // أثناء التحميل
   if (loading) {
     return <LoadingScreen />;
   }
 
-  // إذا لم يكن هناك مستخدم مسجل الدخول
   if (!currentUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // إذا كان الحساب قيد المراجعة
   if (isPending) {
     return <PendingApprovalScreen />;
   }
 
-  // التحقق من الأدوار المطلوبة
   if (requiredRoles.length > 0 && userProfile) {
     const hasRequiredRole = requiredRoles.includes(userProfile.primaryRole);
     if (!hasRequiredRole && !isTopManagement) {
@@ -198,7 +181,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
-  // التحقق من الصلاحيات المطلوبة
   if (requiredPermissions.includes('admin') && !canAccessAdminPanel) {
     return <ForbiddenScreen />;
   }
@@ -213,18 +195,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 export const App: React.FC = () => {
   const { currentUser, loading, refreshUserProfile } = useAuth();
 
-  // تحديث بيانات المستخدم بشكل دوري (كل 5 دقائق)
   useEffect(() => {
     if (!currentUser) return;
     
     const interval = setInterval(() => {
       refreshUserProfile();
-    }, 5 * 60 * 1000); // 5 دقائق
+    }, 5 * 60 * 1000);
     
     return () => clearInterval(interval);
   }, [currentUser, refreshUserProfile]);
 
-  // التحقق من وضع الصيانة (يمكن تفعيله من متغيرات البيئة)
   const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
   
   if (isMaintenance) {
@@ -233,7 +213,6 @@ export const App: React.FC = () => {
 
   return (
     <Router>
-      {/* إعدادات الإشعارات المنبثقة (Toast) */}
       <Toaster 
         position="top-center"
         toastOptions={{
@@ -260,22 +239,15 @@ export const App: React.FC = () => {
         }}
       />
       
-      {/* تأخير تحميل الصفحات حتى يتم تجهيزها */}
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          
-          {/* ==========================================
-               صفحة المصادقة (تسجيل الدخول والتسجيل)
-          ========================================== */}
           
           <Route 
             path="/login" 
             element={currentUser && !loading ? <Navigate to="/dashboard" replace /> : <AuthPage />} 
           />
           
-          {/* ==========================================
-               المسارات المحمية (Protected Routes)
-          ========================================== */}
+          <Route path="/setup" element={<AdminSetupPage />} />
           
           <Route 
             path="/" 
@@ -285,50 +257,20 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
-            {/* التوجيه الافتراضي - الذهاب إلى لوحة التحكم */}
             <Route index element={<Navigate to="/dashboard" replace />} />
             
-            {/* ==========================================
-                 الصفحات الأساسية لجميع المستخدمين
-            ========================================== */}
-            
-            {/* صفحة التقويم / لوحة التحكم الرئيسية */}
             <Route path="dashboard" element={<CalendarPage />} />
             <Route path="calendar" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* صفحة المهام */}
             <Route path="tasks" element={<TasksPage />} />
-            
-            {/* صفحة الاجتماعات */}
             <Route path="meetings" element={<MeetingsPage />} />
-            
-            {/* صفحة المحادثات */}
             <Route path="chat" element={<ChatPage />} />
-            
-            {/* صفحة الإشعارات */}
             <Route path="notifications" element={<NotificationsPage />} />
-            
-            {/* صفحة الملف الشخصي */}
             <Route path="profile" element={<ProfilePage />} />
             
-            {/* ==========================================
-                 صفحات المساعدة والدعم الفني
-            ========================================== */}
-            
-            {/* صفحة مركز المساعدة */}
             <Route path="help" element={<HelpPage />} />
-            
-            {/* صفحة الاقتراحات والشكاوى */}
             <Route path="suggestions" element={<SuggestionsPage />} />
-            
-            {/* صفحة الإعدادات */}
             <Route path="settings" element={<SettingsPage />} />
             
-            {/* ==========================================
-                 صفحات الإدارة (للمديرين والإدارة العليا فقط)
-            ========================================== */}
-            
-            {/* لوحة التحكم الإدارية */}
             <Route 
               path="admin" 
               element={
@@ -338,7 +280,6 @@ export const App: React.FC = () => {
               } 
             />
             
-            {/* صفحة إدارة المستخدمين */}
             <Route 
               path="users" 
               element={
@@ -348,7 +289,6 @@ export const App: React.FC = () => {
               } 
             />
             
-            {/* صفحة إدارة الإدارات */}
             <Route 
               path="departments" 
               element={
@@ -358,7 +298,6 @@ export const App: React.FC = () => {
               } 
             />
             
-            {/* صفحة التقارير والإحصائيات */}
             <Route 
               path="reports" 
               element={
@@ -369,10 +308,6 @@ export const App: React.FC = () => {
             />
             
           </Route>
-          
-          {/* ==========================================
-               صفحة 404 - الصفحة غير موجودة
-          ========================================== */}
           
           <Route 
             path="*" 
