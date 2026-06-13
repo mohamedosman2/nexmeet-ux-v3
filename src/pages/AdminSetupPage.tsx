@@ -12,7 +12,19 @@ import {
 } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import toast from 'react-hot-toast';
-import { FaDatabase, FaUsers, FaBuilding, FaTasks, FaCheckCircle, FaSpinner, FaTrash, FaUpload } from 'react-icons/fa';
+import { 
+  FaDatabase, 
+  FaUsers, 
+  FaBuilding, 
+  FaTasks, 
+  FaCheckCircle, 
+  FaSpinner, 
+  FaTrash, 
+  FaUpload,
+  FaMapMarkerAlt,
+  FaVideo,
+  FaComments
+} from 'react-icons/fa';
 
 // ==========================================
 // بيانات المستخدمين الافتراضيين
@@ -163,6 +175,129 @@ const SEED_USERS: SeedUser[] = [
 ];
 
 // ==========================================
+// بيانات الإدارات
+// ==========================================
+
+const DEPARTMENTS_DATA = [
+  { name: 'التسويق', managerUid: null },
+  { name: 'المالية والتدقيق', managerUid: null },
+  { name: 'الموارد البشرية', managerUid: null },
+  { name: 'التكنولوجيا', managerUid: null },
+  { name: 'العلاقات العامة', managerUid: null },
+  { name: 'الإدارة العليا', managerUid: null }
+];
+
+// ==========================================
+// بيانات الفروع والمناطق
+// ==========================================
+
+const REGIONS_DATA = [
+  {
+    id: 'central',
+    name: 'المنطقة الوسطى',
+    branches: [
+      { id: 'riyadh_1', name: 'فرع الحمرا (اليرموك)', rooms: ['القاعة الرئيسية', 'قاعة التدريب 1', 'قاعة التدريب 2'] },
+      { id: 'riyadh_2', name: 'فرع الملك عبدالعزيز (الملك فهد)', rooms: ['قاعة المديرين', 'قاعة المؤتمرات', 'قاعة العروض'] }
+    ]
+  },
+  {
+    id: 'eastern',
+    name: 'المنطقة الشرقية',
+    branches: [
+      { id: 'dammam', name: 'فرع الدمام', rooms: ['قاعة الشرق', 'قاعة الخليج'] }
+    ]
+  },
+  {
+    id: 'western',
+    name: 'المنطقة الغربية',
+    branches: [
+      { id: 'jeddah', name: 'فرع جدة', rooms: ['قاعة البحر الأحمر', 'قاعة المؤتمرات'] }
+    ]
+  },
+  {
+    id: 'northern',
+    name: 'المنطقة الشمالية',
+    branches: [
+      { id: 'jauf', name: 'فرع الجوف', rooms: ['قاعة الجوف', 'قاعة الحدود'] }
+    ]
+  },
+  {
+    id: 'southern',
+    name: 'المنطقة الجنوبية',
+    branches: [
+      { id: 'abha', name: 'فرع أبها', rooms: ['قاعة السودة', 'قاعة أبيها'] }
+    ]
+  }
+];
+
+// ==========================================
+// بيانات المهام الافتراضية
+// ==========================================
+
+const TASKS_DATA = [
+  {
+    title: 'اجتماع التسويق الأسبوعي',
+    date: new Date().toISOString().split('T')[0],
+    time: '10:00',
+    description: 'مراجعة الحملات التسويقية ومناقشة الخطة الأسبوعية',
+    priority: 'medium',
+    status: 'progress',
+    department: 'التسويق',
+    isPublic: true
+  },
+  {
+    title: 'مراجعة الميزانية الربع سنوية',
+    date: new Date().toISOString().split('T')[0],
+    time: '14:00',
+    description: 'مراجعة الميزانية المالية للربع الثالث',
+    priority: 'high',
+    status: 'todo',
+    department: 'المالية والتدقيق',
+    isPublic: true
+  },
+  {
+    title: 'مقابلات توظيف للمشاريع الجديدة',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    time: '09:00',
+    description: 'مقابلة المرشحين للوظائف الجديدة',
+    priority: 'medium',
+    status: 'todo',
+    department: 'الموارد البشرية',
+    isPublic: true
+  },
+  {
+    title: 'تحديث نظام الموقع',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    time: '11:00',
+    description: 'تحديث واجهة المستخدم وإصلاح المشاكل التقنية',
+    priority: 'high',
+    status: 'progress',
+    department: 'التكنولوجيا',
+    isPublic: true
+  },
+  {
+    title: 'تقرير العلاقات العامة الشهري',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    time: '15:00',
+    description: 'إعداد التقرير الشهري لأنشطة العلاقات العامة',
+    priority: 'low',
+    status: 'todo',
+    department: 'العلاقات العامة',
+    isPublic: true
+  },
+  {
+    title: 'اجتماع مجلس الإدارة',
+    date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    time: '16:00',
+    description: 'مناقشة الأداء العام للشركة',
+    priority: 'high',
+    status: 'todo',
+    department: 'الإدارة العليا',
+    isPublic: true
+  }
+];
+
+// ==========================================
 // صفحة تهيئة قاعدة البيانات
 // ==========================================
 
@@ -171,6 +306,7 @@ export const AdminSetupPage: React.FC = () => {
   const [stats, setStats] = useState<{
     users: number;
     departments: number;
+    regions: number;
     tasks: number;
   } | null>(null);
   const [seeding, setSeeding] = useState(false);
@@ -181,11 +317,13 @@ export const AdminSetupPage: React.FC = () => {
     try {
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const departmentsSnapshot = await getDocs(collection(db, 'departments'));
+      const regionsSnapshot = await getDocs(collection(db, 'regions'));
       const tasksSnapshot = await getDocs(collection(db, 'tasks'));
       
       setStats({
         users: usersSnapshot.size,
         departments: departmentsSnapshot.size,
+        regions: regionsSnapshot.size,
         tasks: tasksSnapshot.size
       });
     } catch (error) {
@@ -199,18 +337,9 @@ export const AdminSetupPage: React.FC = () => {
 
   // تهيئة الإدارات
   const seedDepartments = async () => {
-    const departments = [
-      { name: 'التسويق', managerUid: null },
-      { name: 'المالية والتدقيق', managerUid: null },
-      { name: 'الموارد البشرية', managerUid: null },
-      { name: 'التكنولوجيا', managerUid: null },
-      { name: 'العلاقات العامة', managerUid: null },
-      { name: 'الإدارة العليا', managerUid: null }
-    ];
-    
     const batch = writeBatch(db);
     
-    for (const dept of departments) {
+    for (const dept of DEPARTMENTS_DATA) {
       const deptRef = doc(db, 'departments', dept.name);
       const deptDoc = await getDoc(deptRef);
       if (!deptDoc.exists()) {
@@ -225,6 +354,59 @@ export const AdminSetupPage: React.FC = () => {
     
     await batch.commit();
     console.log('✅ تم تهيئة الإدارات');
+  };
+
+  // تهيئة الفروع والمناطق
+  const seedRegions = async () => {
+    const batch = writeBatch(db);
+    
+    for (const region of REGIONS_DATA) {
+      const regionRef = doc(db, 'regions', region.id);
+      const regionDoc = await getDoc(regionRef);
+      if (!regionDoc.exists()) {
+        batch.set(regionRef, {
+          id: region.id,
+          region: region.name,
+          branches: region.branches,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+      }
+    }
+    
+    await batch.commit();
+    console.log('✅ تم تهيئة الفروع والمناطق');
+  };
+
+  // تهيئة المهام
+  const seedTasks = async () => {
+    const batch = writeBatch(db);
+    
+    for (let i = 0; i < TASKS_DATA.length; i++) {
+      const task = TASKS_DATA[i];
+      const taskId = `${task.title.replace(/\s/g, '_')}_${Date.now()}_${i}`;
+      const taskRef = doc(db, 'tasks', taskId);
+      batch.set(taskRef, {
+        title: task.title,
+        date: task.date,
+        time: task.time,
+        description: task.description,
+        priority: task.priority,
+        status: task.status,
+        department: task.department,
+        isPublic: task.isPublic,
+        createdByUid: 'system',
+        assigneesUids: [],
+        mentionsUids: [],
+        attachments: [],
+        comments: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+    
+    await batch.commit();
+    console.log('✅ تم تهيئة المهام');
   };
 
   // إنشاء مستخدم في Firestore
@@ -267,36 +449,46 @@ export const AdminSetupPage: React.FC = () => {
     }
   };
 
+  // تهيئة المستخدمين
+  const seedUsers = async () => {
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const user of SEED_USERS) {
+      const uid = await createAuthUser(user.email, user.password);
+      if (uid) {
+        await createFirestoreUser(user, uid);
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+    
+    return { successCount, failCount };
+  };
+
   // تهيئة جميع البيانات
   const handleSeedDatabase = async () => {
     setSeeding(true);
     setLoading(true);
     
     try {
-      // 1. تهيئة الإدارات
       toast.loading('جاري تهيئة الإدارات...', { id: 'seed' });
       await seedDepartments();
       
-      // 2. تهيئة المستخدمين
+      toast.loading('جاري تهيئة الفروع والمناطق...', { id: 'seed' });
+      await seedRegions();
+      
+      toast.loading('جاري تهيئة المهام...', { id: 'seed' });
+      await seedTasks();
+      
       toast.loading('جاري تهيئة المستخدمين...', { id: 'seed' });
-      let successCount = 0;
-      let failCount = 0;
+      const { successCount, failCount } = await seedUsers();
       
-      for (const user of SEED_USERS) {
-        const uid = await createAuthUser(user.email, user.password);
-        if (uid) {
-          await createFirestoreUser(user, uid);
-          successCount++;
-        } else {
-          failCount++;
-        }
-      }
-      
-      // 3. تحديث الإحصائيات
       await fetchStats();
       
-      toast.success(`تم تهيئة ${successCount} مستخدم و 6 إدارات بنجاح`, { id: 'seed' });
-      console.log(`✅ اكتملت التهيئة: ${successCount} نجاح, ${failCount} فشل`);
+      toast.success(`تم التهيئة بنجاح! ${successCount} مستخدم، ${DEPARTMENTS_DATA.length} إدارة، ${REGIONS_DATA.length} منطقة، ${TASKS_DATA.length} مهمة`, { id: 'seed' });
+      console.log(`✅ اكتملت التهيئة: مستخدمين ${successCount} نجاح, ${failCount} فشل`);
     } catch (error) {
       console.error('Error seeding database:', error);
       toast.error('حدث خطأ في تهيئة قاعدة البيانات', { id: 'seed' });
@@ -318,10 +510,12 @@ export const AdminSetupPage: React.FC = () => {
     try {
       toast.loading('جاري حذف البيانات...', { id: 'clear' });
       
-      const collections = ['users', 'tasks', 'meetings', 'departments', 'regions', 'notifications', 'messages'];
+      const collections = ['users', 'tasks', 'meetings', 'departments', 'regions', 'notifications', 'messages', 'calls', 'suggestions', 'chatGroups'];
       
       for (const collectionName of collections) {
         const snapshot = await getDocs(collection(db, collectionName));
+        if (snapshot.empty) continue;
+        
         const batch = writeBatch(db);
         snapshot.forEach((doc) => {
           batch.delete(doc.ref);
@@ -343,7 +537,7 @@ export const AdminSetupPage: React.FC = () => {
 
   return (
     <div className="min-h-screen p-8" style={{ background: 'var(--bg)' }}>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         
         {/* العنوان */}
         <div className="text-center mb-8">
@@ -351,11 +545,11 @@ export const AdminSetupPage: React.FC = () => {
             <FaDatabase className="text-brand text-3xl" />
           </div>
           <h1 className="text-2xl font-bold">تهيئة قاعدة البيانات</h1>
-          <p className="text-gray-500 mt-2">إدارة بيانات المستخدمين والإدارات والمهام</p>
+          <p className="text-gray-500 mt-2">إدارة بيانات المستخدمين والإدارات والفروع والمهام</p>
         </div>
         
         {/* الإحصائيات */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <div className="card text-center">
             <FaUsers className="mx-auto mb-2 text-blue-500" size={24} />
             <p className="text-2xl font-bold">{stats?.users || 0}</p>
@@ -367,51 +561,19 @@ export const AdminSetupPage: React.FC = () => {
             <p className="text-sm text-gray-500">الإدارات</p>
           </div>
           <div className="card text-center">
-            <FaTasks className="mx-auto mb-2 text-purple-500" size={24} />
+            <FaMapMarkerAlt className="mx-auto mb-2 text-purple-500" size={24} />
+            <p className="text-2xl font-bold">{stats?.regions || 0}</p>
+            <p className="text-sm text-gray-500">المناطق والفروع</p>
+          </div>
+          <div className="card text-center">
+            <FaTasks className="mx-auto mb-2 text-orange-500" size={24} />
             <p className="text-2xl font-bold">{stats?.tasks || 0}</p>
             <p className="text-sm text-gray-500">المهام</p>
           </div>
         </div>
         
-        {/* المستخدمين المتوقع إنشاؤهم */}
-        <div className="card mb-8">
-          <h2 className="font-bold mb-4">المستخدمين المتوقع إنشاؤهم</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b" style={{ borderColor: 'var(--bd)' }}>
-                  <th className="text-right p-2">الاسم</th>
-                  <th className="text-right p-2">البريد الإلكتروني</th>
-                  <th className="text-right p-2">الدور</th>
-                  <th className="text-right p-2">الإدارة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {SEED_USERS.map((user, idx) => (
-                  <tr key={idx} className="border-b" style={{ borderColor: 'var(--bd)' }}>
-                    <td className="p-2">{user.name}</td>
-                    <td className="p-2 text-gray-500">{user.email}</td>
-                    <td className="p-2">
-                      <span className={`badge ${
-                        user.primaryRole === 'chairman' ? 'badge-primary' :
-                        user.primaryRole === 'vp' ? 'badge-secondary' :
-                        user.primaryRole === 'manager' ? 'badge-info' : 'badge'
-                      }`}>
-                        {user.primaryRole === 'chairman' ? 'رئيس' :
-                         user.primaryRole === 'vp' ? 'نائب رئيس' :
-                         user.primaryRole === 'manager' ? 'مدير' : 'موظف'}
-                      </span>
-                    </td>
-                    <td className="p-2">{user.department}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
         {/* أزرار التحكم */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 mb-8">
           <button
             onClick={handleSeedDatabase}
             disabled={seeding || clearing}
@@ -431,16 +593,133 @@ export const AdminSetupPage: React.FC = () => {
           </button>
         </div>
         
-        {/* معلومات حسابات الدخول */}
-        <div className="mt-8 p-4 rounded-lg" style={{ background: 'var(--hv)' }}>
-          <h3 className="font-bold mb-3">حسابات الدخول المتاحة بعد التهيئة:</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex flex-wrap gap-4">
-              <div><span className="text-brand">mohd@uexperts.sa</span> / Pass@123 - <span className="text-yellow-500">رئيس مجلس الإدارة</span></div>
-              <div><span className="text-brand">ali@uexperts.sa</span> / Pass@123 - <span className="text-blue-500">نائب رئيس</span></div>
-              <div><span className="text-brand">muharib@uexperts.sa</span> / Pass@123 - <span className="text-green-500">مدير العلاقات العامة + مستشار</span></div>
-              <div><span className="text-brand">m.othman@uexperts.sa</span> / Pass@123 - <span className="text-purple-500">مستشار رئيس مجلس الإدارة</span></div>
+        {/* تفاصيل ما سيتم تهيئته */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          {/* المستخدمين */}
+          <div className="card">
+            <h2 className="font-bold mb-4 flex items-center gap-2">
+              <FaUsers className="text-blue-500" />
+              المستخدمين المتوقع إنشاؤهم ({SEED_USERS.length})
+            </h2>
+            <div className="overflow-x-auto max-h-64 overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--bd)' }}>
+                    <th className="text-right p-2">الاسم</th>
+                    <th className="text-right p-2">البريد</th>
+                    <th className="text-right p-2">الدور</th>
+                    <th className="text-right p-2">الإدارة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SEED_USERS.map((user, idx) => (
+                    <tr key={idx} className="border-b" style={{ borderColor: 'var(--bd)' }}>
+                      <td className="p-2 text-sm">{user.name}</td>
+                      <td className="p-2 text-xs text-gray-500">{user.email}</td>
+                      <td className="p-2">
+                        <span className={`badge text-xs ${
+                          user.primaryRole === 'chairman' ? 'badge-primary' :
+                          user.primaryRole === 'vp' ? 'badge-secondary' :
+                          user.primaryRole === 'manager' ? 'badge-info' : 'badge'
+                        }`}>
+                          {user.primaryRole === 'chairman' ? 'رئيس' :
+                           user.primaryRole === 'vp' ? 'نائب رئيس' :
+                           user.primaryRole === 'manager' ? 'مدير' : 'موظف'}
+                        </span>
+                      </td>
+                      <td className="p-2 text-sm">{user.department}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          </div>
+          
+          {/* الإدارات والفروع */}
+          <div className="card">
+            <h2 className="font-bold mb-4 flex items-center gap-2">
+              <FaBuilding className="text-green-500" />
+              الإدارات والفروع
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <p className="font-medium mb-2">الإدارات ({DEPARTMENTS_DATA.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {DEPARTMENTS_DATA.map((dept, idx) => (
+                    <span key={idx} className="badge bg-hv">{dept.name}</span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="font-medium mb-2">المناطق والفروع ({REGIONS_DATA.length} مناطق)</p>
+                <div className="space-y-2">
+                  {REGIONS_DATA.map((region, idx) => (
+                    <div key={idx} className="p-2 rounded-lg bg-hv">
+                      <p className="font-medium text-sm">{region.name}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {region.branches.map((branch, bidx) => (
+                          <span key={bidx} className="text-xs px-2 py-0.5 rounded bg-brand/20">{branch.name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* المهام */}
+          <div className="card md:col-span-2">
+            <h2 className="font-bold mb-4 flex items-center gap-2">
+              <FaTasks className="text-orange-500" />
+              المهام المتوقع إنشاؤها ({TASKS_DATA.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b" style={{ borderColor: 'var(--bd)' }}>
+                    <th className="text-right p-2">العنوان</th>
+                    <th className="text-right p-2">التاريخ</th>
+                    <th className="text-right p-2">الوقت</th>
+                    <th className="text-right p-2">الأولوية</th>
+                    <th className="text-right p-2">الإدارة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TASKS_DATA.map((task, idx) => (
+                    <tr key={idx} className="border-b" style={{ borderColor: 'var(--bd)' }}>
+                      <td className="p-2">{task.title}</td>
+                      <td className="p-2 text-gray-500">{task.date}</td>
+                      <td className="p-2 text-gray-500">{task.time}</td>
+                      <td className="p-2">
+                        <span className={`badge text-xs ${
+                          task.priority === 'high' ? 'badge-danger' :
+                          task.priority === 'medium' ? 'badge-warning' : 'badge-success'
+                        }`}>
+                          {task.priority === 'high' ? 'عالية' : task.priority === 'medium' ? 'متوسطة' : 'منخفضة'}
+                        </span>
+                      </td>
+                      <td className="p-2">{task.department}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        
+        {/* معلومات حسابات الدخول */}
+        <div className="mt-6 p-4 rounded-lg" style={{ background: 'var(--hv)' }}>
+          <h3 className="font-bold mb-3 flex items-center gap-2">
+            <FaCheckCircle className="text-green-500" />
+            حسابات الدخول المتاحة بعد التهيئة:
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+            <div><span className="text-brand font-medium">mohd@uexperts.sa</span> / Pass@123 - <span className="text-yellow-500">رئيس مجلس الإدارة</span></div>
+            <div><span className="text-brand font-medium">ali@uexperts.sa</span> / Pass@123 - <span className="text-blue-500">نائب رئيس</span></div>
+            <div><span className="text-brand font-medium">muharib@uexperts.sa</span> / Pass@123 - <span className="text-green-500">مدير العلاقات العامة + مستشار</span></div>
+            <div><span className="text-brand font-medium">m.othman@uexperts.sa</span> / Pass@123 - <span className="text-purple-500">مستشار رئيس مجلس الإدارة</span></div>
           </div>
         </div>
         

@@ -1,10 +1,8 @@
-// أضف هذا الاستيراد في بداية App.tsx
-// أضف هذا الاستيراد في بداية الملف
+// أضف هذا الاستيراد مع باقي الاستيرادات في بداية الملف
 import { AdminSetupPage } from './pages/AdminSetupPage';
 
-// أضف هذا المسار داخل Routes (يفضل وضعه قبل Route path="*")
+// أضف هذا المسار داخل Routes (قبل Route path="*")
 <Route path="/setup" element={<AdminSetupPage />} />
-
 import { seedDatabase } from './services/seedUsers';
 
 // أضف هذا الزر في return (مؤقتاً)
