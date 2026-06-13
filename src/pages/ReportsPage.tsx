@@ -644,7 +644,7 @@ export const ReportsPage: React.FC = () => {
               <th className="text-right p-3">الدور</th>
               <th className="text-right p-3">الحالة</th>
               <th className="text-right p-3">تاريخ الانضمام</th>
-             </tr>
+             </table>
           </thead>
           <tbody>
             {usersData.filter(u => selectedDepartment === 'all' || u.department === selectedDepartment).map(user => (
@@ -792,8 +792,7 @@ export const ReportsPage: React.FC = () => {
         >
           <FaUsers className="inline ml-2" size={14} /> المستخدمين
         </button>
-        <button
-          onClick={() => setActiveReport('performance')}
+        <button          onClick={() => setActiveReport('performance')}
           className={`px-4 py-2 text-sm font-medium transition-all ${activeReport === 'performance' ? 'border-b-2 border-brand text-brand' : 'text-gray-500 hover:text-white'}`}
         >
           <FaChartLine className="inline ml-2" size={14} /> الأداء

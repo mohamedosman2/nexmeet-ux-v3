@@ -948,8 +948,6 @@ export const TasksPage: React.FC = () => {
                 <input
                   type="text"
                   value={newComment}
-                  // src/pages/TasksPage.tsx (الجزء الأخير)
-
                   onChange={(e) => setNewComment(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                   placeholder="أضف تعليقاً..."

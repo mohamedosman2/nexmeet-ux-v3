@@ -592,7 +592,7 @@ export const UsersPage: React.FC = () => {
                 <th className="text-right p-3">الحالة</th>
                 <th className="text-right p-3">تاريخ الانضمام</th>
                 <th className="text-right p-3">الإجراءات</th>
-              </tr>
+              </table>
             </thead>
             <tbody>
               {filteredUsers.map(user => {

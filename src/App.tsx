@@ -1,7 +1,7 @@
 // src/App.tsx
 
 import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -17,7 +17,7 @@ const MeetingsPage = lazy(() => import('./pages/MeetingsPage').then(module => ({
 const ChatPage = lazy(() => import('./pages/ChatPage').then(module => ({ default: module.ChatPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(module => ({ default: module.NotificationsPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(module => ({ default: module.ProfilePage })));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }))); // ✅ التغيير الوحيد: DashboardPage -> AdminDashboard
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard })));
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage').then(module => ({ default: module.DepartmentsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(module => ({ default: module.UsersPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
@@ -49,6 +49,7 @@ const LoadingScreen: React.FC = () => {
 
 const PendingApprovalScreen: React.FC = () => {
   const { logout, userProfile } = useAuth();
+  const navigate = useNavigate();
   
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--lg)' }}>
@@ -87,7 +88,7 @@ const PendingApprovalScreen: React.FC = () => {
         
         {/* زر تسجيل الخروج */}
         <button 
-          onClick={logout}
+          onClick={() => { logout(); navigate('/login'); }}
           className="px-6 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-brand/20 border border-brand/30 text-brand-light hover:text-white"
         >
           تسجيل الخروج
@@ -215,7 +216,8 @@ export const App: React.FC = () => {
   }, [currentUser, refreshUserProfile]);
 
   // إذا كان النظام في وضع الصيانة (يمكن تفعيله من متغيرات البيئة)
-  const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
+  const isMaintenance = false;
+
   if (isMaintenance) {
     return <MaintenanceScreen />;
   }
