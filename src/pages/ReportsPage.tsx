@@ -570,7 +570,7 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-3">{task.department}</td>
-               </tr>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -613,7 +613,7 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-3">{meeting.attendeesUids?.length || 0}</td>
-               </tr>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -644,7 +644,7 @@ export const ReportsPage: React.FC = () => {
               <th className="text-right p-3">الدور</th>
               <th className="text-right p-3">الحالة</th>
               <th className="text-right p-3">تاريخ الانضمام</th>
-             </table>
+             </tr>
           </thead>
           <tbody>
             {usersData.filter(u => selectedDepartment === 'all' || u.department === selectedDepartment).map(user => (
