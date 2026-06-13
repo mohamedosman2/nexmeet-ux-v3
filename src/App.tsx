@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -52,20 +52,17 @@ const PendingApprovalScreen: React.FC = () => {
   
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--lg)' }}>
-      {/* الخلفيات المتحركة */}
       <div className="floating-shape" style={{ width: '300px', height: '300px', background: '#8B1A1A', top: '10%', right: '10%' }}></div>
       <div className="floating-shape" style={{ width: '200px', height: '200px', background: '#1E3A6E', bottom: '15%', left: '15%' }}></div>
       <div className="floating-shape" style={{ width: '250px', height: '250px', background: '#A52A2A', top: '40%', left: '40%', opacity: '0.05' }}></div>
       
       <div className="text-center max-w-md mx-4 animate-fadeIn">
-        {/* أيقونة الساعة */}
         <div className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(139, 26, 26, 0.15)' }}>
           <svg className="w-12 h-12 text-brand-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         
-        {/* النص الترحيبي */}
         <h2 className="text-2xl font-bold mb-3 text-white">مرحباً بك في شركة UX</h2>
         <p className="text-gray-400 mb-2">طلب انضمامك قيد المراجعة من قبل الإدارة</p>
         
@@ -77,7 +74,6 @@ const PendingApprovalScreen: React.FC = () => {
           <p className="text-xs text-gray-500 mt-2">سيتم إشعارك عبر البريد الإلكتروني عند الموافقة</p>
         </div>
         
-        {/* معلومات المستخدم */}
         {userProfile && (
           <div className="bg-dark-bg2 rounded-lg p-3 mb-6 text-right">
             <p className="text-sm text-white"><span className="text-gray-500">الاسم:</span> {userProfile.name}</p>
@@ -86,7 +82,6 @@ const PendingApprovalScreen: React.FC = () => {
           </div>
         )}
         
-        {/* زر تسجيل الخروج */}
         <button 
           onClick={logout}
           className="px-6 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-brand/20 border border-brand/30 text-brand-light hover:text-white"
@@ -368,7 +363,7 @@ export const App: React.FC = () => {
           <Route 
             path="*" 
             element={
-              <div className="fixed inset-0 flex items-center justifyContent" style={{ background: 'var(--bg)' }}>
+              <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--bg)' }}>
                 <div className="text-center animate-fadeIn">
                   <div className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center bg-brand/10">
                     <span className="text-4xl font-bold text-brand">404</span>

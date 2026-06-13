@@ -41,7 +41,8 @@ import {
   FaEnvelope,
   FaPhone,
   FaCalendarAlt,
-  FaChartLine
+  FaChartLine,
+  FaPlus
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -138,24 +139,21 @@ export const UsersPage: React.FC = () => {
   });
   
   // ==========================================
-  // جلب البيانات من Firebase
+  // جلب البيانات
   // ==========================================
   
   useEffect(() => {
     if (!canAccessAdminPanel) return;
     
-    // جلب المستخدمين
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
       snapshot.forEach((doc) => {
         fetchedUsers.push({ uid: doc.id, ...doc.data() } as User);
       });
       
-      // ترتيب حسب الاسم
       fetchedUsers.sort((a, b) => a.name.localeCompare(b.name));
       setUsers(fetchedUsers);
       
-      // تحديث الإحصائيات
       const total = fetchedUsers.length;
       const active = fetchedUsers.filter(u => u.isActive).length;
       const inactive = fetchedUsers.filter(u => !u.isActive).length;
@@ -171,7 +169,6 @@ export const UsersPage: React.FC = () => {
       setLoading(false);
     });
     
-    // جلب الإدارات
     const unsubscribeDepts = onSnapshot(collection(db, 'departments'), (snapshot) => {
       const fetchedDepts: Department[] = [];
       snapshot.forEach((doc) => {
@@ -191,23 +188,18 @@ export const UsersPage: React.FC = () => {
   // ==========================================
   
   const filteredUsers = users.filter(user => {
-    // فلترة حسب البحث
     if (searchQuery && !user.name.toLowerCase().includes(searchQuery.toLowerCase()) && !user.email.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
-    // فلترة حسب الإدارة
     if (selectedDepartment !== 'all' && user.department !== selectedDepartment) {
       return false;
     }
-    // فلترة حسب الدور
     if (selectedRole !== 'all' && user.primaryRole !== selectedRole) {
       return false;
     }
-    // فلترة حسب الحالة
     if (selectedStatus === 'active' && !user.isActive) return false;
     if (selectedStatus === 'inactive' && user.isActive) return false;
     
-    // المدير العادي يرى فقط مستخدمي إدارته
     if (!isTopManagement && isManager) {
       return user.department === userProfile?.department;
     }
@@ -302,7 +294,6 @@ export const UsersPage: React.FC = () => {
     try {
       await updateDoc(doc(db, 'users', userId), { primaryRole: newRole });
       
-      // تحديث مدير الإدارة
       const dept = departments.find(d => d.name === department);
       if (dept) {
         if (newRole === 'manager') {
@@ -334,7 +325,7 @@ export const UsersPage: React.FC = () => {
   };
   
   // ==========================================
-  // فتح نافذة تعديل صلاحيات المستخدم (الألقاب والإدارات الإضافية)
+  // فتح نافذة تعديل صلاحيات المستخدم
   // ==========================================
   
   const openRolesModal = (user: User) => {
@@ -472,7 +463,6 @@ export const UsersPage: React.FC = () => {
       
       toast.success('تم إضافة المستخدم بنجاح');
       
-      // تنظيف النموذج
       setFormName('');
       setFormEmail('');
       setFormPhone('');
@@ -584,7 +574,6 @@ export const UsersPage: React.FC = () => {
           </div>
           
           <div className="modal-body space-y-4">
-            {/* صلاحية استثنائية */}
             <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--hv)' }}>
               <div>
                 <p className="font-medium">صلاحية لوحة التحكم</p>
@@ -601,7 +590,6 @@ export const UsersPage: React.FC = () => {
               </label>
             </div>
             
-            {/* الإدارات الإضافية */}
             <div>
               <label className="block text-sm font-medium mb-2">إدارات إضافية للمستخدم</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -629,7 +617,6 @@ export const UsersPage: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">يمكن للمستخدم الوصول إلى بيانات هذه الإدارات</p>
             </div>
             
-            {/* الألقاب الإضافية */}
             <div>
               <label className="block text-sm font-medium mb-2">الألقاب والمناصب الإضافية</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -895,10 +882,6 @@ export const UsersPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* ==========================================
-           الرأس
-      ========================================== */}
-      
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">إدارة المستخدمين</h1>
@@ -908,10 +891,6 @@ export const UsersPage: React.FC = () => {
           <FaUserPlus className="ml-2" /> إضافة مستخدم جديد
         </button>
       </div>
-      
-      {/* ==========================================
-           بطاقات الإحصائيات
-      ========================================== */}
       
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div 
@@ -951,10 +930,6 @@ export const UsersPage: React.FC = () => {
         </div>
       </div>
       
-      {/* ==========================================
-           شريط البحث والفلترة
-      ========================================== */}
-      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -978,10 +953,6 @@ export const UsersPage: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* ==========================================
-           فلاتر إضافية
-      ========================================== */}
       
       {showFilters && (
         <div className="card p-4 animate-fadeIn">
@@ -1041,10 +1012,6 @@ export const UsersPage: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* ==========================================
-           جدول المستخدمين
-      ========================================== */}
       
       {loading ? (
         <div className="flex justify-center py-12">
@@ -1210,10 +1177,6 @@ export const UsersPage: React.FC = () => {
           )}
         </div>
       )}
-      
-      {/* ==========================================
-           النوافذ المنبثقة
-      ========================================== */}
       
       {showUserModal && <UserModal />}
       {showRolesModal && <RolesModal />}

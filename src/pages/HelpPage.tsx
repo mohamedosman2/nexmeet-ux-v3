@@ -1,5 +1,26 @@
 import React, { useState } from 'react';
-import { FaQuestionCircle, FaTasks, FaVideo, FaUsers, FaBuilding, FaBell, FaKey, FaUserCog, FaComments, FaCalendarAlt, FaSearch, FaDownload, FaPrint, FaEnvelope, FaPhone, FaWhatsapp, FaTelegram, FaTwitter, FaLinkedin } from 'react-icons/fa';
+import { 
+  FaQuestionCircle, 
+  FaTasks, 
+  FaVideo, 
+  FaUsers, 
+  FaBuilding, 
+  FaBell, 
+  FaKey, 
+  FaUserCog, 
+  FaComments, 
+  FaCalendarAlt, 
+  FaSearch, 
+  FaDownload, 
+  FaPrint, 
+  FaEnvelope, 
+  FaPhone, 
+  FaWhatsapp, 
+  FaTelegram, 
+  FaTwitter, 
+  FaLinkedin,
+  FaShieldAlt
+} from 'react-icons/fa';
 
 // ==========================================
 // صفحة المساعدة والدعم الفني
@@ -191,6 +212,20 @@ export const HelpPage: React.FC = () => {
   };
 
   // ==========================================
+  // الفئات المتاحة للأسئلة الشائعة
+  // ==========================================
+
+  const categories = [
+    { id: 'general', name: 'عام', icon: <FaQuestionCircle size={16} /> },
+    { id: 'tasks', name: 'المهام', icon: <FaTasks size={16} /> },
+    { id: 'meetings', name: 'الاجتماعات', icon: <FaVideo size={16} /> },
+    { id: 'chat', name: 'المحادثات', icon: <FaComments size={16} /> },
+    { id: 'calendar', name: 'التقويم', icon: <FaCalendarAlt size={16} /> },
+    { id: 'profile', name: 'الملف الشخصي', icon: <FaUserCog size={16} /> },
+    { id: 'admin', name: 'الإدارة', icon: <FaShieldAlt size={16} /> }
+  ];
+
+  // ==========================================
   // فلترة الأسئلة حسب البحث
   // ==========================================
 
@@ -221,7 +256,6 @@ export const HelpPage: React.FC = () => {
     setSendingContact(true);
     
     try {
-      // محاكاة إرسال البيانات (يمكن ربطها بـ Firebase أو خدمة بريد إلكتروني لاحقاً)
       await new Promise(resolve => setTimeout(resolve, 1000));
       alert('تم إرسال رسالتك بنجاح. سنتواصل معك قريباً.');
       setContactName('');
@@ -235,20 +269,6 @@ export const HelpPage: React.FC = () => {
       setSendingContact(false);
     }
   };
-
-  // ==========================================
-  // الفئات المتاحة للأسئلة الشائعة
-  // ==========================================
-
-  const categories = [
-    { id: 'general', name: 'عام', icon: <FaQuestionCircle size={16} /> },
-    { id: 'tasks', name: 'المهام', icon: <FaTasks size={16} /> },
-    { id: 'meetings', name: 'الاجتماعات', icon: <FaVideo size={16} /> },
-    { id: 'chat', name: 'المحادثات', icon: <FaComments size={16} /> },
-    { id: 'calendar', name: 'التقويم', icon: <FaCalendarAlt size={16} /> },
-    { id: 'profile', name: 'الملف الشخصي', icon: <FaUserCog size={16} /> },
-    { id: 'admin', name: 'الإدارة', icon: <FaShieldAlt size={16} /> }
-  ];
 
   // ==========================================
   // معلومات الاتصال

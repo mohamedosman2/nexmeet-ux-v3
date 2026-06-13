@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
-import { collection, addDoc, query, where, getDocs, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  limit, 
+  onSnapshot,
+  updateDoc,
+  doc,
+  deleteDoc
+} from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { 
   FaLightbulb, 
@@ -26,7 +38,8 @@ import {
   FaCheck,
   FaTimes,
   FaChartLine,
-  FaEye
+  FaEye,
+  FaPlus
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -137,7 +150,6 @@ export const SuggestionsPage: React.FC = () => {
   // ==========================================
   
   useEffect(() => {
-    // جلب المستخدمين
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
       snapshot.forEach((doc) => {
@@ -146,7 +158,6 @@ export const SuggestionsPage: React.FC = () => {
       setUsers(fetchedUsers);
     });
     
-    // جلب الاقتراحات
     const unsubscribeSuggestions = onSnapshot(
       query(collection(db, 'suggestions'), orderBy('createdAt', 'desc')),
       (snapshot) => {
@@ -174,15 +185,12 @@ export const SuggestionsPage: React.FC = () => {
   // ==========================================
   
   const filteredSuggestions = suggestions.filter(suggestion => {
-    // فلترة حسب البحث
     if (searchQuery && !suggestion.title.toLowerCase().includes(searchQuery.toLowerCase()) && !suggestion.description.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
-    // فلترة حسب النوع
     if (filterType !== 'all' && suggestion.type !== filterType) {
       return false;
     }
-    // فلترة حسب الحالة
     if (filterStatus !== 'all' && suggestion.status !== filterStatus) {
       return false;
     }
@@ -207,11 +215,11 @@ export const SuggestionsPage: React.FC = () => {
     setSubmitting(true);
     
     try {
-      const newSuggestion: Omit<Suggestion, 'id'> = {
+      const newSuggestion = {
         title: formTitle.trim(),
         description: formDescription.trim(),
         type: formType,
-        status: 'pending',
+        status: 'pending' as SuggestionStatus,
         createdByUid: currentUser!.uid,
         createdByName: userProfile.name,
         createdByEmail: userProfile.email,
@@ -230,7 +238,6 @@ export const SuggestionsPage: React.FC = () => {
       
       toast.success('تم إرسال اقتراحك بنجاح! شكراً لك');
       
-      // تنظيف النموذج
       setFormTitle('');
       setFormDescription('');
       setFormType('suggestion');
@@ -268,14 +275,11 @@ export const SuggestionsPage: React.FC = () => {
     
     if (voteType === 'upvote') {
       if (isUpvoted) {
-        // إزالة التصويت
         newUpvotes--;
         newUpvotedBy = newUpvotedBy.filter(uid => uid !== currentUser.uid);
       } else {
-        // إضافة تصويت
         newUpvotes++;
         newUpvotedBy.push(currentUser.uid);
-        // إذا كان قد صوت سلباً، قم بإزالة التصويت السلبي
         if (isDownvoted) {
           newDownvotes--;
           newDownvotedBy = newDownvotedBy.filter(uid => uid !== currentUser.uid);
@@ -283,14 +287,11 @@ export const SuggestionsPage: React.FC = () => {
       }
     } else {
       if (isDownvoted) {
-        // إزالة التصويت السلبي
         newDownvotes--;
         newDownvotedBy = newDownvotedBy.filter(uid => uid !== currentUser.uid);
       } else {
-        // إضافة تصويت سلبي
         newDownvotes++;
         newDownvotedBy.push(currentUser.uid);
-        // إذا كان قد صوت إيجاباً، قم بإزالة التصويت الإيجابي
         if (isUpvoted) {
           newUpvotes--;
           newUpvotedBy = newUpvotedBy.filter(uid => uid !== currentUser.uid);
@@ -471,7 +472,6 @@ export const SuggestionsPage: React.FC = () => {
         </div>
         
         <div className="modal-body space-y-4">
-          {/* نوع الاقتراح */}
           <div>
             <label className="block text-sm font-medium mb-2">نوع الاقتراح</label>
             <div className="flex flex-wrap gap-3">
@@ -494,7 +494,6 @@ export const SuggestionsPage: React.FC = () => {
             </div>
           </div>
           
-          {/* عنوان الاقتراح */}
           <div>
             <label className="block text-sm font-medium mb-1">العنوان *</label>
             <input
@@ -506,7 +505,6 @@ export const SuggestionsPage: React.FC = () => {
             />
           </div>
           
-          {/* وصف الاقتراح */}
           <div>
             <label className="block text-sm font-medium mb-1">الوصف *</label>
             <textarea
@@ -518,7 +516,6 @@ export const SuggestionsPage: React.FC = () => {
             />
           </div>
           
-          {/* تقييم (إذا كان النوع تقييم) */}
           {formType === 'feedback' && (
             <div>
               <label className="block text-sm font-medium mb-2">تقييمك</label>
@@ -577,7 +574,8 @@ export const SuggestionsPage: React.FC = () => {
                 className="badge"
                 style={{ background: `${suggestionTypes.find(t => t.value === viewingSuggestion.type)?.color}20`, color: suggestionTypes.find(t => t.value === viewingSuggestion.type)?.color }}
               >
-                {suggestionTypes.find(t => t.value === viewingSuggestion.type)?.label}
+                {suggestionTypes.find(t => t.value === viewingSuggestion.type)?.icon}
+                <span className="mr-1">{suggestionTypes.find(t => t.value === viewingSuggestion.type)?.label}</span>
               </span>
               <span 
                 className="badge"
@@ -593,7 +591,6 @@ export const SuggestionsPage: React.FC = () => {
           </div>
           
           <div className="modal-body space-y-4">
-            {/* معلومات المنشئ */}
             <div className="flex items-center gap-3 p-3 rounded-lg bg-hv">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold" style={{ background: 'var(--brand-primary)' }}>
                 {viewingSuggestion.createdByName.charAt(0)}
@@ -607,7 +604,6 @@ export const SuggestionsPage: React.FC = () => {
               </div>
             </div>
             
-            {/* التقييم (إذا كان موجوداً) */}
             {viewingSuggestion.rating && viewingSuggestion.rating > 0 && (
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">التقييم:</span>
@@ -617,7 +613,6 @@ export const SuggestionsPage: React.FC = () => {
               </div>
             )}
             
-            {/* الوصف */}
             <div>
               <label className="text-sm font-medium">الوصف</label>
               <div className="mt-1 p-3 rounded-lg bg-inp whitespace-pre-wrap">
@@ -625,7 +620,6 @@ export const SuggestionsPage: React.FC = () => {
               </div>
             </div>
             
-            {/* الرد الإداري */}
             {viewingSuggestion.adminResponse && (
               <div className="p-3 rounded-lg" style={{ background: 'rgba(139,26,26,0.1)', borderRight: '3px solid var(--brand-primary)' }}>
                 <p className="text-sm font-medium text-brand mb-1">رد الإدارة:</p>
@@ -636,7 +630,6 @@ export const SuggestionsPage: React.FC = () => {
               </div>
             )}
             
-            {/* أزرار التصويت */}
             <div className="flex items-center gap-4">
               <button
                 onClick={() => handleVote(viewingSuggestion.id, 'upvote')}
@@ -662,7 +655,6 @@ export const SuggestionsPage: React.FC = () => {
               </button>
             </div>
             
-            {/* التعليقات */}
             <div>
               <label className="text-sm font-medium mb-2 block">التعليقات ({viewingSuggestion.comments?.length || 0})</label>
               <div className="space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg bg-inp">
@@ -684,7 +676,6 @@ export const SuggestionsPage: React.FC = () => {
                 )}
               </div>
               
-              {/* إضافة تعليق جديد */}
               <div className="flex gap-2 mt-3">
                 <input
                   type="text"
@@ -804,10 +795,6 @@ export const SuggestionsPage: React.FC = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* ==========================================
-           الرأس
-      ========================================== */}
-      
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -820,10 +807,6 @@ export const SuggestionsPage: React.FC = () => {
           <FaPlus className="ml-2" /> اقتراح جديد
         </button>
       </div>
-      
-      {/* ==========================================
-           بطاقات الإحصائيات
-      ========================================== */}
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="card p-3 text-center">
@@ -844,10 +827,6 @@ export const SuggestionsPage: React.FC = () => {
         </div>
       </div>
       
-      {/* ==========================================
-           شريط البحث والفلترة
-      ========================================== */}
-      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -865,10 +844,6 @@ export const SuggestionsPage: React.FC = () => {
           </button>
         </div>
       </div>
-      
-      {/* ==========================================
-           فلاتر إضافية
-      ========================================== */}
       
       {showFilters && (
         <div className="card p-4 animate-fadeIn">
@@ -912,10 +887,6 @@ export const SuggestionsPage: React.FC = () => {
           </div>
         </div>
       )}
-      
-      {/* ==========================================
-           قائمة الاقتراحات
-      ========================================== */}
       
       {loading ? (
         <div className="flex justify-center py-12">
@@ -1010,10 +981,6 @@ export const SuggestionsPage: React.FC = () => {
           ))}
         </div>
       )}
-      
-      {/* ==========================================
-           النوافذ المنبثقة
-      ========================================== */}
       
       {showAddModal && <AddSuggestionModal />}
       {viewingSuggestion && <SuggestionDetailModal />}

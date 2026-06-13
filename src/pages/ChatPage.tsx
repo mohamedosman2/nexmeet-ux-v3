@@ -13,7 +13,8 @@ import {
   orderBy,
   limit,
   getDocs,
-  Timestamp
+  Timestamp,
+  setDoc
 } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { 
@@ -197,7 +198,10 @@ export const ChatPage: React.FC = () => {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
-  const [incomingCall, setIncomingCall] = useState<{ from: string; offer: RTCSessionDescriptionInit } | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ from: string; offer: RTCSessionDescriptionInit; type: string } | null>(null);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -303,12 +307,10 @@ export const ChatPage: React.FC = () => {
       });
       setMessages(fetchedMessages);
       
-      // تمرير إلى آخر رسالة
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
       
-      // تحديث حالة القراءة
       updateReadStatus(fetchedMessages);
     });
     
@@ -344,7 +346,6 @@ export const ChatPage: React.FC = () => {
     setSendingMessage(true);
     
     try {
-      // معالجة المنشنات في النص
       const mentionRegex = /@(\w+)/g;
       const mentions = [...inputText.matchAll(mentionRegex)].map(m => m[1]);
       const mentionUids = users.filter(u => mentions.includes(u.name)).map(u => u.uid);
@@ -364,7 +365,6 @@ export const ChatPage: React.FC = () => {
       
       await addDoc(collection(db, 'messages'), messageData);
       
-      // تنظيف الحقول
       setInputText('');
       setAttachments([]);
       setReplyToMessage(null);
@@ -433,16 +433,13 @@ export const ChatPage: React.FC = () => {
     
     if (existingReaction) {
       if (existingReaction.users.includes(currentUser.uid)) {
-        // إزالة التفاعل
         existingReaction.users = existingReaction.users.filter(uid => uid !== currentUser.uid);
         newReactions = message.reactions?.filter(r => r.users.length > 0) || [];
       } else {
-        // إضافة مستخدم للتفاعل الموجود
         existingReaction.users.push(currentUser.uid);
         newReactions = message.reactions || [];
       }
     } else {
-      // إضافة تفاعل جديد
       newReactions = [...(message.reactions || []), { emoji, users: [currentUser.uid] }];
     }
     
@@ -513,13 +510,9 @@ export const ChatPage: React.FC = () => {
       
       recorder.onstop = () => {
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        const url = URL.createObjectURL(audioBlob);
-        
-        // رفع الملف الصوتي
         const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
         const fakeEvent = { target: { files: [audioFile] } } as any;
         handleFileUpload(fakeEvent.target.files);
-        
         stream.getTracks().forEach(track => track.stop());
       };
       
@@ -544,7 +537,6 @@ export const ChatPage: React.FC = () => {
   // دوال المكالمات الصوتية والفيديو (WebRTC)
   // ==========================================
   
-  // بدء مكالمة صوتية
   const startAudioCall = async (peerId: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -565,7 +557,6 @@ export const ChatPage: React.FC = () => {
       
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          // إرسال المرشح إلى الطرف الآخر (يمكن تخزينه في Firestore)
           console.log('ICE candidate:', event.candidate);
         }
       };
@@ -573,7 +564,6 @@ export const ChatPage: React.FC = () => {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       
-      // إرسال العرض إلى الطرف الآخر عبر Firestore
       const callRef = doc(db, 'calls', `${currentUser?.uid}_${peerId}`);
       await setDoc(callRef, {
         from: currentUser?.uid,
@@ -590,11 +580,10 @@ export const ChatPage: React.FC = () => {
       setCallPeerId(peerId);
       setCallStatus('calling');
       
-      // تعيين مهلة للمكالمة
       callTimeoutRef.current = setTimeout(() => {
         if (callStatus === 'calling') {
           endCall();
-          toast.error('لم يتم الرد على المكالمة');
+          toast('لم يتم الرد على المكالمة');
         }
       }, 30000);
       
@@ -604,7 +593,6 @@ export const ChatPage: React.FC = () => {
     }
   };
   
-  // بدء مكالمة فيديو
   const startVideoCall = async (peerId: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
@@ -651,7 +639,7 @@ export const ChatPage: React.FC = () => {
       callTimeoutRef.current = setTimeout(() => {
         if (callStatus === 'calling') {
           endCall();
-          toast.error('لم يتم الرد على المكالمة');
+          toast('لم يتم الرد على المكالمة');
         }
       }, 30000);
       
@@ -661,14 +649,13 @@ export const ChatPage: React.FC = () => {
     }
   };
   
-  // الرد على مكالمة واردة
   const acceptCall = async () => {
     if (!incomingCall) return;
     
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: true, 
-        video: incomingCall.offer.type === 'video' 
+        video: incomingCall.type === 'video'
       });
       setLocalStream(stream);
       if (localVideoRef.current) {
@@ -689,7 +676,6 @@ export const ChatPage: React.FC = () => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       
-      // إرسال الرد إلى الطالب
       const callRef = doc(db, 'calls', `${currentUser?.uid}_${incomingCall.from}`);
       await updateDoc(callRef, {
         answer: answer,
@@ -699,7 +685,7 @@ export const ChatPage: React.FC = () => {
       
       setPeerConnection(pc);
       setIsCallActive(true);
-      setIsVideoCall(incomingCall.offer.type === 'video');
+      setIsVideoCall(incomingCall.type === 'video');
       setCallPeerId(incomingCall.from);
       setCallStatus('connected');
       setIncomingCall(null);
@@ -712,17 +698,15 @@ export const ChatPage: React.FC = () => {
     }
   };
   
-  // رفض المكالمة
   const rejectCall = () => {
     if (incomingCall) {
       const callRef = doc(db, 'calls', `${currentUser?.uid}_${incomingCall.from}`);
       updateDoc(callRef, { status: 'rejected' }).catch(console.error);
       setIncomingCall(null);
-      toast.info('تم رفض المكالمة');
+      toast('تم رفض المكالمة');
     }
   };
   
-  // إنهاء المكالمة
   const endCall = () => {
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -768,9 +752,10 @@ export const ChatPage: React.FC = () => {
         if (callData.offer && !incomingCall) {
           setIncomingCall({
             from: callData.from,
-            offer: callData.offer
+            offer: callData.offer,
+            type: callData.type || 'audio'
           });
-          toast.info(`مكالمة ${callData.type === 'video' ? 'فيديو' : 'صوتية'} واردة من ${getUserName(callData.from)}`);
+          toast(`مكالمة ${callData.type === 'video' ? 'فيديو' : 'صوتية'} واردة من ${getUserName(callData.from)}`);
         }
       });
     });
@@ -971,7 +956,6 @@ export const ChatPage: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* زر المكالمة الصوتية */}
             {isPrivate && peerId && !isCallActive && (
               <button
                 onClick={() => startAudioCall(peerId)}
@@ -981,7 +965,6 @@ export const ChatPage: React.FC = () => {
                 <FaPhone size={14} />
               </button>
             )}
-            {/* زر مكالمة الفيديو */}
             {isPrivate && peerId && !isCallActive && (
               <button
                 onClick={() => startVideoCall(peerId)}
@@ -998,14 +981,12 @@ export const ChatPage: React.FC = () => {
         {isCallActive && (
           <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
             <div className="relative w-full max-w-4xl aspect-video">
-              {/* الفيديو البعيد */}
               <video
                 ref={remoteVideoRef}
                 autoPlay
                 playsInline
                 className="w-full h-full object-cover rounded-lg"
               />
-              {/* الفيديو المحلي (صغير) */}
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -1014,7 +995,6 @@ export const ChatPage: React.FC = () => {
                 className="absolute bottom-4 right-4 w-32 h-24 object-cover rounded-lg border-2 border-white shadow-lg"
               />
               
-              {/* أزرار التحكم */}
               <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
                 <button
                   onClick={endCall}
@@ -1052,7 +1032,6 @@ export const ChatPage: React.FC = () => {
                 )}
               </div>
               
-              {/* حالة المكالمة */}
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/50 px-4 py-2 rounded-full text-white text-sm">
                 {callStatus === 'calling' && 'جارٍ الاتصال...'}
                 {callStatus === 'ringing' && 'يرن...'}
@@ -1071,7 +1050,7 @@ export const ChatPage: React.FC = () => {
               </div>
               <h3 className="text-xl font-bold mb-2">مكالمة واردة</h3>
               <p className="text-gray-400 mb-6">
-                {getUserName(incomingCall.from)} يطلب مكالمة {incomingCall.offer.type === 'video' ? 'فيديو' : 'صوتية'}
+                {getUserName(incomingCall.from)} يطلب مكالمة {incomingCall.type === 'video' ? 'فيديو' : 'صوتية'}
               </p>
               <div className="flex gap-4 justify-center">
                 <button
@@ -1113,7 +1092,6 @@ export const ChatPage: React.FC = () => {
               return (
                 <div key={message.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                   <div className={`flex gap-2 max-w-[70%] ${isMine ? 'flex-row-reverse' : ''}`}>
-                    {/* الصورة الرمزية */}
                     {!isMine && showAvatar && (
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-1" style={{ background: 'var(--brand-secondary)' }}>
                         {getUserInitials(sender?.name || '?')}
@@ -1121,7 +1099,6 @@ export const ChatPage: React.FC = () => {
                     )}
                     {!isMine && !showAvatar && <div className="w-8 flex-shrink-0" />}
                     
-                    {/* فقاعة الرسالة */}
                     <div className="group relative">
                       <div className={`chat-bubble ${isMine ? 'mine' : 'other'}`}>
                         {!isMine && activeGroup?.type !== 'private' && (
@@ -1207,6 +1184,57 @@ export const ChatPage: React.FC = () => {
                           >
                             <FaTrash size={10} />
                           </button>
+                        </div>
+                      )}
+                      
+                      {!isDeleted && (
+                        <div className={`absolute ${isMine ? 'right-full mr-2' : 'left-full ml-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity`}>
+                          <div className="relative">
+                            <button
+                              onClick={() => {
+                                const picker = document.createElement('div');
+                                picker.className = 'absolute bottom-full mb-2 p-2 rounded-lg shadow-xl z-50';
+                                picker.style.background = 'var(--bg3)';
+                                picker.style.border = '1px solid var(--bd)';
+                                picker.style.width = '280px';
+                                picker.style.maxHeight = '200px';
+                                picker.style.overflowY = 'auto';
+                                picker.style.display = 'grid';
+                                picker.style.gridTemplateColumns = 'repeat(8, 1fr)';
+                                picker.style.gap = '4px';
+                                
+                                EMOJIS.forEach(emoji => {
+                                  const btn = document.createElement('button');
+                                  btn.textContent = emoji;
+                                  btn.className = 'p-1 rounded hover:bg-hv transition-colors';
+                                  btn.onclick = () => {
+                                    handleAddReaction(message.id, emoji);
+                                    picker.remove();
+                                  };
+                                  picker.appendChild(btn);
+                                });
+                                
+                                document.body.appendChild(picker);
+                                const rect = (document.activeElement as HTMLElement)?.getBoundingClientRect();
+                                if (rect) {
+                                  picker.style.left = `${rect.left}px`;
+                                  picker.style.bottom = `${window.innerHeight - rect.top + 10}px`;
+                                }
+                                
+                                setTimeout(() => {
+                                  document.addEventListener('click', function onClickOutside(e) {
+                                    if (!picker.contains(e.target as Node)) {
+                                      picker.remove();
+                                      document.removeEventListener('click', onClickOutside);
+                                    }
+                                  });
+                                }, 0);
+                              }}
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-xs bg-bg3 border border-bd hover:text-brand"
+                            >
+                              😊
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

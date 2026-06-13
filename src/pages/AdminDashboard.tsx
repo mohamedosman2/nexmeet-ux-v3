@@ -51,8 +51,10 @@ import {
   FaCheckDouble,
   FaClock,
   FaStar,
-  FaTrendUp,
-  FaTrendDown
+  FaArrowUp as FaTrendUp,
+  FaArrowDown as FaTrendDown,
+  FaEyeSlash,
+  FaCheckCircle
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -241,11 +243,9 @@ export const AdminDashboard: React.FC = () => {
         fetchedUsers.push({ uid: doc.id, ...doc.data() } as User);
       });
       
-      // ترتيب المستخدمين حسب الاسم أبجدياً
       fetchedUsers.sort((a, b) => a.name.localeCompare(b.name));
       setUsers(fetchedUsers);
       
-      // تحديث الإحصائيات المتعلقة بالمستخدمين
       const totalUsers = fetchedUsers.length;
       const activeUsers = fetchedUsers.filter(u => u.isActive).length;
       const pendingUsers = fetchedUsers.filter(u => !u.isActive).length;
@@ -379,15 +379,12 @@ export const AdminDashboard: React.FC = () => {
   // ==========================================
   
   const filteredUsers = users.filter(user => {
-    // فلترة حسب البحث (Search Filter)
     if (searchQuery && !user.name.toLowerCase().includes(searchQuery.toLowerCase()) && !user.email.toLowerCase().includes(searchQuery.toLowerCase())) {
       return false;
     }
-    // فلترة حسب الإدارة (Department Filter)
     if (selectedDepartment !== 'all' && user.department !== selectedDepartment) {
       return false;
     }
-    // المدير العادي يرى فقط مستخدمي إدارته
     if (!isTopManagement && isManager) {
       return user.department === userProfile?.department;
     }
@@ -498,7 +495,6 @@ export const AdminDashboard: React.FC = () => {
     try {
       await updateDoc(doc(db, 'users', userId), { primaryRole: newRole });
       
-      // تحديث مدير الإدارة في Firestore
       const dept = departments.find(d => d.name === department);
       if (dept) {
         if (newRole === 'manager') {
@@ -632,14 +628,13 @@ export const AdminDashboard: React.FC = () => {
         additionalTitles: [],
         isActive: true,
         createdAt: Date.now(),
-        createdBy: currentUser?.uid
+        lastLoginAt: undefined
       };
       
       await addDoc(collection(db, 'users'), newUser);
       
       toast.success('تم إضافة المستخدم بنجاح');
       
-      // تنظيف النموذج
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPhone('');
@@ -660,11 +655,9 @@ export const AdminDashboard: React.FC = () => {
   const handleApproveRequest = async (request: JoinRequest): Promise<void> => {
     try {
       if (request.status === 'pending_manager') {
-        // موافقة المدير - ترقية إلى انتظار الرئيس
         await updateDoc(doc(db, 'joinRequests', request.id), { status: 'pending_chairman' });
         toast.success('تمت الموافقة المبدئية، في انتظار موافقة الرئيس');
       } else if (request.status === 'pending_chairman') {
-        // موافقة الرئيس - تفعيل الحساب
         await updateDoc(doc(db, 'joinRequests', request.id), { status: 'approved' });
         await updateDoc(doc(db, 'users', request.uid), { isActive: true });
         toast.success('تمت الموافقة على طلب الانضمام');
@@ -877,7 +870,6 @@ export const AdminDashboard: React.FC = () => {
           </div>
           
           <div className="modal-body space-y-4">
-            {/* صلاحية استثنائية للوصول إلى لوحة التحكم */}
             <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--hv)' }}>
               <div>
                 <p className="font-medium">صلاحية لوحة التحكم</p>
@@ -894,7 +886,6 @@ export const AdminDashboard: React.FC = () => {
               </label>
             </div>
             
-            {/* إدارات إضافية يمكن للمستخدم الوصول إليها */}
             <div>
               <label className="block text-sm font-medium mb-2">إدارات إضافية للمستخدم</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -922,7 +913,6 @@ export const AdminDashboard: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">يمكن للمستخدم الوصول إلى بيانات هذه الإدارات</p>
             </div>
             
-            {/* الألقاب والمناصب الإضافية */}
             <div>
               <label className="block text-sm font-medium mb-2">الألقاب والمناصب الإضافية</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -1133,7 +1123,6 @@ export const AdminDashboard: React.FC = () => {
   const OverviewTab: React.FC = () => (
     <div className="space-y-6">
       
-      {/* صف بطاقات الإحصائيات الأول */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="إجمالي المستخدمين"
@@ -1168,7 +1157,6 @@ export const AdminDashboard: React.FC = () => {
         />
       </div>
       
-      {/* صف بطاقات الإحصائيات الثاني */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="إجمالي المهام"
@@ -1200,10 +1188,8 @@ export const AdminDashboard: React.FC = () => {
         />
       </div>
       
-      {/* توزيع المستخدمين حسب الإدارة */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* الرسم البياني لتوزيع المستخدمين حسب الإدارة */}
         <div className="card">
           <h3 className="font-bold mb-4 flex items-center gap-2">
             <FaBuilding className="text-brand" />
@@ -1229,7 +1215,6 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
         
-        {/* توزيع المستخدمين حسب الدور */}
         <div className="card">
           <h3 className="font-bold mb-4 flex items-center gap-2">
             <FaUserTie className="text-brand" />
@@ -1267,7 +1252,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* الإشعارات الأخيرة */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold flex items-center gap-2">
@@ -1317,7 +1301,6 @@ export const AdminDashboard: React.FC = () => {
   const UsersTab: React.FC = () => (
     <div className="space-y-4">
       
-      {/* شريط البحث والفلترة */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -1352,7 +1335,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* جدول المستخدمين */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -1675,7 +1657,6 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       
-      {/* عنوان الصفحة */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">لوحة التحكم الإدارية</h1>
@@ -1691,7 +1672,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* أزرار التنقل (Tabs) */}
       <div className="flex flex-wrap gap-2 border-b" style={{ borderColor: 'var(--bd)' }}>
         <button
           onClick={() => setActiveTab('overview')}
@@ -1730,7 +1710,6 @@ export const AdminDashboard: React.FC = () => {
         </button>
       </div>
       
-      {/* محتوى التبويب النشط */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
@@ -1745,7 +1724,6 @@ export const AdminDashboard: React.FC = () => {
         </>
       )}
       
-      {/* النوافذ المنبثقة */}
       {showAddUserModal && <AddUserModal />}
       {showRolesModal && <RolesModal />}
       {showDeleteConfirm && <DeleteConfirmModal />}
