@@ -1,5 +1,3 @@
-// src/pages/MeetingsPage.tsx
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
@@ -54,7 +52,14 @@ import {
   FaWifi,
   FaMicrophone,
   FaChalkboard,
-  FaProjectDiagram
+  FaProjectDiagram,
+  FaTag,
+  FaCheck,
+  FaExclamationTriangle,
+  FaChevronRight,
+  FaChevronLeft,
+  FaList,
+  FaThLarge
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -89,7 +94,6 @@ interface Meeting {
   meetingId?: string;
   meetingPassword?: string;
   reminderSent: boolean;
-  attachments?: Attachment[];
 }
 
 interface Attachment {
@@ -272,7 +276,10 @@ const REGIONS_DATA: Region[] = [
   }
 ];
 
+// ==========================================
 // منصات الاجتماعات الافتراضية
+// ==========================================
+
 const PLATFORMS: Record<MeetingPlatform, { name: string; icon: JSX.Element; color: string; defaultLink: string }> = {
   zoom: { 
     name: 'Zoom', 
@@ -314,19 +321,28 @@ export const MeetingsPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const { isTopManagement, isManager } = usePermissions();
   
+  // ==========================================
   // حالات البيانات
+  // ==========================================
+  
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // ==========================================
   // حالات الفلترة
+  // ==========================================
+  
   const [filterType, setFilterType] = useState<MeetingType | 'all'>('all');
   const [filterDate, setFilterDate] = useState<'all' | 'today' | 'upcoming' | 'past'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'calendar'>('list');
   
+  // ==========================================
   // حالات النوافذ المنبثقة
+  // ==========================================
+  
   const [showMeetingModal, setShowMeetingModal] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
   const [viewingMeeting, setViewingMeeting] = useState<Meeting | null>(null);
@@ -335,7 +351,10 @@ export const MeetingsPage: React.FC = () => {
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [joiningMeeting, setJoiningMeeting] = useState<Meeting | null>(null);
   
+  // ==========================================
   // حالات النموذج
+  // ==========================================
+  
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -351,20 +370,25 @@ export const MeetingsPage: React.FC = () => {
   const [agenda, setAgenda] = useState<string[]>(['']);
   const [isPublic, setIsPublic] = useState(true);
   
+  // ==========================================
   // حالات البحث عن المستخدمين
+  // ==========================================
+  
   const [attendeeSearch, setAttendeeSearch] = useState('');
   const [mentionSearch, setMentionSearch] = useState('');
   const [showAttendeeDropdown, setShowAttendeeDropdown] = useState(false);
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   
-  // حالات الإشعارات
-  const [sendingReminders, setSendingReminders] = useState(false);
-
   // ==========================================
-  // جلب البيانات من Firebase
+  // حالات الإشعارات
   // ==========================================
   
+  const [sendingReminders, setSendingReminders] = useState(false);
+  
+  // ==========================================
   // جلب المستخدمين
+  // ==========================================
+  
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
@@ -376,7 +400,10 @@ export const MeetingsPage: React.FC = () => {
     return unsubscribe;
   }, []);
   
+  // ==========================================
   // جلب الاجتماعات مع صلاحيات المستخدم
+  // ==========================================
+  
   useEffect(() => {
     if (!userProfile) return;
     
@@ -454,7 +481,7 @@ export const MeetingsPage: React.FC = () => {
   }, [meetings, searchQuery, filterType, filterDate]);
   
   // ==========================================
-  // دوال إدارة الاجتماعات
+  // فتح نافذة إضافة اجتماع جديد
   // ==========================================
   
   const openCreateModal = () => {
@@ -476,6 +503,10 @@ export const MeetingsPage: React.FC = () => {
     setShowMeetingModal(true);
   };
   
+  // ==========================================
+  // فتح نافذة تعديل اجتماع
+  // ==========================================
+  
   const openEditModal = (meeting: Meeting) => {
     setEditingMeeting(meeting);
     setTitle(meeting.title);
@@ -494,6 +525,10 @@ export const MeetingsPage: React.FC = () => {
     setIsPublic(meeting.isPublic);
     setShowMeetingModal(true);
   };
+  
+  // ==========================================
+  // حفظ الاجتماع (إضافة أو تعديل)
+  // ==========================================
   
   const handleSaveMeeting = async () => {
     if (!title || !date || !time) {
@@ -568,9 +603,6 @@ export const MeetingsPage: React.FC = () => {
             });
           }
         }
-        
-        // إرسال إشعارات إضافية عن البريد الإلكتروني (ميزة إضافية)
-        await sendEmailNotifications(notifyUsers, title, date, time, meetingLink);
       }
       
       setShowMeetingModal(false);
@@ -580,11 +612,9 @@ export const MeetingsPage: React.FC = () => {
     }
   };
   
-  // إرسال إشعارات البريد الإلكتروني (محاكاة - يمكن تفعيلها مع Firebase Cloud Functions)
-  const sendEmailNotifications = async (userIds: string[], meetingTitle: string, meetingDate: string, meetingTime: string, link: string) => {
-    // في الإصدار الكامل، يمكن ربط هذا بـ Firebase Cloud Functions أو EmailJS
-    console.log(`Sending email notifications for meeting "${meetingTitle}" to users:`, userIds);
-  };
+  // ==========================================
+  // حذف اجتماع
+  // ==========================================
   
   const handleDeleteMeeting = async () => {
     if (!deletingMeetingId) return;
@@ -601,15 +631,27 @@ export const MeetingsPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // الانضمام إلى اجتماع
+  // ==========================================
+  
   const handleJoinMeeting = (meeting: Meeting) => {
     setJoiningMeeting(meeting);
     setShowJoinModal(true);
   };
   
+  // ==========================================
+  // نسخ الرابط
+  // ==========================================
+  
   const handleCopyLink = (link: string) => {
     navigator.clipboard.writeText(link);
     toast.success('تم نسخ الرابط');
   };
+  
+  // ==========================================
+  // مشاركة الاجتماع
+  // ==========================================
   
   const handleShareMeeting = async (meeting: Meeting) => {
     const shareText = `دعوة لحضور اجتماع: ${meeting.title}\nالتاريخ: ${meeting.date}\nالوقت: ${meeting.time}\n`;
@@ -629,6 +671,10 @@ export const MeetingsPage: React.FC = () => {
       handleCopyLink(shareText + shareUrl);
     }
   };
+  
+  // ==========================================
+  // إرسال تذكيرات
+  // ==========================================
   
   const handleSendReminders = async (meeting: Meeting) => {
     setSendingReminders(true);
@@ -1738,7 +1784,7 @@ export const MeetingsPage: React.FC = () => {
   };
   
   // ==========================================
-  // الواجهة الرئيسية
+  // إحصائيات
   // ==========================================
   
   const filteredMeetingsList = filteredMeetings();
@@ -1751,37 +1797,73 @@ export const MeetingsPage: React.FC = () => {
     offline: meetings.filter(m => m.type === 'offline').length
   };
   
+  // ==========================================
+  // التحقق من الصلاحيات
+  // ==========================================
+  
+  if (!isTopManagement && !isManager) {
+    return (
+      <div className="text-center py-12">
+        <FaVideo className="text-6xl mx-auto mb-4 text-gray-500" />
+        <h2 className="text-xl font-bold mb-2">غير مصرح بالوصول</h2>
+        <p className="text-gray-500">هذه الصفحة متاحة للمديرين والإدارة العليا فقط</p>
+      </div>
+    );
+  }
+  
+  // ==========================================
+  // الواجهة الرئيسية
+  // ==========================================
+  
   return (
-    <div className="space-y-4 animate-fadeIn">
-      {/* الرأس والإحصائيات */}
+    <div className="space-y-6 animate-fadeIn">
+      
+      {/* ==========================================
+           الرأس والإحصائيات
+      ========================================== */}
+      
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">إدارة الاجتماعات</h1>
+          <p className="text-gray-500 text-sm mt-1">جدولة وإدارة الاجتماعات الداخلية والخارجية</p>
+        </div>
+        <button onClick={openCreateModal} className="btn-primary">
+          <FaPlus className="ml-2" /> اجتماع جديد
+        </button>
+      </div>
+      
+      {/* بطاقات الإحصائيات */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => { setFilterDate('all'); setFilterType('all'); }}>
           <p className="text-xs text-gray-500">إجمالي الاجتماعات</p>
           <p className="text-2xl font-bold">{stats.total}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterDate('today')}>
           <p className="text-xs text-gray-500">اليوم</p>
           <p className="text-2xl font-bold text-green-500">{stats.today}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterDate('upcoming')}>
           <p className="text-xs text-gray-500">القادمة</p>
           <p className="text-2xl font-bold text-blue-500">{stats.upcoming}</p>
         </div>
-        <div className="card p-3 text-center">
-          <p className="text-xs text-gray-500">السابقة</p>
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterDate('past')}>
+          <p className="text-xs text-gray-500">المنتهية</p>
           <p className="text-2xl font-bold text-gray-500">{stats.past}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterType('online')}>
           <p className="text-xs text-gray-500">عن بُعد</p>
           <p className="text-2xl font-bold text-purple-500">{stats.online}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterType('offline')}>
           <p className="text-xs text-gray-500">حضوري</p>
           <p className="text-2xl font-bold text-orange-500">{stats.offline}</p>
         </div>
       </div>
       
-      {/* شريط التحكم */}
+      {/* ==========================================
+           شريط البحث والفلترة
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -1793,8 +1875,8 @@ export const MeetingsPage: React.FC = () => {
             className="input pr-9"
           />
         </div>
-        
         <div className="flex items-center gap-2">
+          {/* زر تبديل العرض */}
           <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: 'var(--bd)' }}>
             <button
               onClick={() => setViewMode('list')}
@@ -1816,20 +1898,20 @@ export const MeetingsPage: React.FC = () => {
             </button>
           </div>
           
+          {/* زر الفلترة */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}
           >
             <FaFilter />
           </button>
-          
-          <button onClick={openCreateModal} className="btn-primary">
-            <FaPlus className="ml-2" /> اجتماع جديد
-          </button>
         </div>
       </div>
       
-      {/* لوحة الفلاتر */}
+      {/* ==========================================
+           لوحة الفلاتر الإضافية
+      ========================================== */}
+      
       {showFilters && (
         <div className="card p-4 animate-fadeIn">
           <div className="flex flex-wrap items-center gap-4">
@@ -1847,16 +1929,16 @@ export const MeetingsPage: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">التاريخ:</span>
+              <span className="text-sm text-gray-500">الفترة:</span>
               <select
                 value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value as 'all' | 'today' | 'upcoming' | 'past')}
+                onChange={(e) => setFilterDate(e.target.value as typeof filterDate)}
                 className="input text-sm py-1.5"
               >
                 <option value="all">الكل</option>
                 <option value="today">اليوم</option>
                 <option value="upcoming">القادمة</option>
-                <option value="past">السابقة</option>
+                <option value="past">المنتهية</option>
               </select>
             </div>
             
@@ -1864,6 +1946,7 @@ export const MeetingsPage: React.FC = () => {
               onClick={() => {
                 setFilterType('all');
                 setFilterDate('all');
+                setSearchQuery('');
               }}
               className="text-sm text-brand-light hover:text-brand transition-colors"
             >
@@ -1873,36 +1956,44 @@ export const MeetingsPage: React.FC = () => {
         </div>
       )}
       
-      {/* عرض الاجتماعات حسب الوضع */}
+      {/* ==========================================
+           عرض الاجتماعات حسب وضع العرض
+      ========================================== */}
+      
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
         </div>
+      ) : filteredMeetingsList.length === 0 ? (
+        <div className="card text-center py-12">
+          <FaVideo className="text-5xl mx-auto mb-4 text-gray-500" />
+          <p className="text-gray-500">لا توجد اجتماعات</p>
+          <button onClick={openCreateModal} className="btn-primary mt-4">
+            <FaPlus className="ml-2" /> جدولة اجتماع جديد
+          </button>
+        </div>
+      ) : viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredMeetingsList.map(meeting => (
+            <MeetingGridCard key={meeting.id} meeting={meeting} />
+          ))}
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="card p-0 overflow-hidden">
+          <div className="divide-y" style={{ borderColor: 'var(--bd)' }}>
+            {filteredMeetingsList.map(meeting => (
+              <MeetingListItem key={meeting.id} meeting={meeting} />
+            ))}
+          </div>
+        </div>
       ) : (
-        <>
-          {viewMode === 'grid' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredMeetingsList.map(meeting => (
-                <MeetingGridCard key={meeting.id} meeting={meeting} />
-              ))}
-            </div>
-          )}
-          
-          {viewMode === 'list' && (
-            <div className="card p-0 overflow-hidden">
-              <div className="divide-y" style={{ borderColor: 'var(--bd)' }}>
-                {filteredMeetingsList.map(meeting => (
-                  <MeetingListItem key={meeting.id} meeting={meeting} />
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {viewMode === 'calendar' && <CalendarView />}
-        </>
+        <CalendarView />
       )}
       
-      {/* النوافذ المنبثقة */}
+      {/* ==========================================
+           النوافذ المنبثقة
+      ========================================== */}
+      
       {showMeetingModal && <MeetingFormModal />}
       {viewingMeeting && <MeetingViewModal />}
       {showJoinModal && <JoinMeetingModal />}

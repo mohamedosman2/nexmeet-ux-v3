@@ -1,5 +1,3 @@
-// src/pages/TasksPage.tsx
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
 import { db, storage, uploadFile, deleteFile } from '../config/firebase';
@@ -55,7 +53,8 @@ import {
   FaFileExcel,
   FaFileArchive,
   FaFileCode,
-  FaFileAlt
+  FaFileAlt,
+  FaTasks
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { arSA } from 'date-fns/locale';
@@ -147,32 +146,48 @@ export const TasksPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const { isTopManagement, isManager } = usePermissions();
   
+  // ==========================================
   // حالات البيانات
+  // ==========================================
+  
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // ==========================================
   // حالات الفلترة
+  // ==========================================
+  
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
   const [filterDepartment, setFilterDepartment] = useState<string>('all');
   const [filterAssignee, setFilterAssignee] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   
+  // ==========================================
   // حالات العرض والترتيب
+  // ==========================================
+  
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   
+  // ==========================================
   // حالات النوافذ المنبثقة
+  // ==========================================
+  
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
   
+  // ==========================================
   // حالات النموذج
+  // ==========================================
+  
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -185,25 +200,34 @@ export const TasksPage: React.FC = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [isPublic, setIsPublic] = useState(true);
   
+  // ==========================================
   // حالات المرفقات
+  // ==========================================
+  
   const [uploadingFiles, setUploadingFiles] = useState<{ name: string; progress: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // ==========================================
   // حالات البحث عن المستخدمين
+  // ==========================================
+  
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [mentionSearch, setMentionSearch] = useState('');
   const [showAssigneeDropdown, setShowAssigneeDropdown] = useState(false);
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   
-  // حالات التعليقات
-  const [newComment, setNewComment] = useState('');
-  const [addingComment, setAddingComment] = useState(false);
-
   // ==========================================
-  // جلب البيانات من Firebase
+  // حالات التعليقات
   // ==========================================
   
+  const [newComment, setNewComment] = useState('');
+  const [addingComment, setAddingComment] = useState(false);
+  const [commentsList, setCommentsList] = useState<Comment[]>([]);
+  
+  // ==========================================
   // جلب المستخدمين
+  // ==========================================
+  
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
@@ -215,7 +239,10 @@ export const TasksPage: React.FC = () => {
     return unsubscribe;
   }, []);
   
+  // ==========================================
   // جلب المهام مع صلاحيات المستخدم
+  // ==========================================
+  
   useEffect(() => {
     if (!userProfile) return;
     
@@ -266,6 +293,15 @@ export const TasksPage: React.FC = () => {
     
     return unsubscribe;
   }, [userProfile, isTopManagement, isManager]);
+  
+  // ==========================================
+  // جلب التعليقات عند عرض مهمة
+  // ==========================================
+  
+  useEffect(() => {
+    if (!viewingTask) return;
+    setCommentsList(viewingTask.comments || []);
+  }, [viewingTask]);
   
   // ==========================================
   // دوال الفلترة والبحث
@@ -328,7 +364,20 @@ export const TasksPage: React.FC = () => {
   }, [tasks, searchQuery, filterPriority, filterStatus, filterDepartment, filterAssignee, sortBy, sortOrder]);
   
   // ==========================================
-  // دوال إدارة المهام
+  // إحصائيات المهام
+  // ==========================================
+  
+  const tasksStats = {
+    total: tasks.length,
+    todo: tasks.filter(t => t.status === 'todo').length,
+    progress: tasks.filter(t => t.status === 'progress').length,
+    done: tasks.filter(t => t.status === 'done').length,
+    high: tasks.filter(t => t.priority === 'high' && t.status !== 'done').length,
+    overdue: tasks.filter(t => t.date < new Date().toISOString().split('T')[0] && t.status !== 'done').length
+  };
+  
+  // ==========================================
+  // فتح نافذة إنشاء مهمة جديدة
   // ==========================================
   
   const openCreateModal = () => {
@@ -347,6 +396,10 @@ export const TasksPage: React.FC = () => {
     setShowTaskModal(true);
   };
   
+  // ==========================================
+  // فتح نافذة تعديل مهمة
+  // ==========================================
+  
   const openEditModal = (task: Task) => {
     setEditingTask(task);
     setTitle(task.title);
@@ -362,6 +415,10 @@ export const TasksPage: React.FC = () => {
     setIsPublic(task.isPublic);
     setShowTaskModal(true);
   };
+  
+  // ==========================================
+  // حفظ المهمة (إضافة أو تعديل)
+  // ==========================================
   
   const handleSaveTask = async () => {
     if (!title || !date || !time) {
@@ -399,7 +456,7 @@ export const TasksPage: React.FC = () => {
           createdAt: Date.now(),
           comments: []
         };
-        await addDoc(collection(db, 'tasks'), newTask);
+        const docRef = await addDoc(collection(db, 'tasks'), newTask);
         toast.success('تم إنشاء المهمة بنجاح');
         
         // إرسال إشعارات للمعنيين
@@ -411,7 +468,7 @@ export const TasksPage: React.FC = () => {
               title: 'مهمة جديدة',
               message: `تم إضافة مهمة جديدة "${title}" تهمك`,
               type: 'task',
-              relatedId: newTask.id,
+              relatedId: docRef.id,
               isRead: false,
               createdAt: Date.now()
             });
@@ -425,6 +482,10 @@ export const TasksPage: React.FC = () => {
       toast.error('حدث خطأ في حفظ المهمة');
     }
   };
+  
+  // ==========================================
+  // حذف مهمة
+  // ==========================================
   
   const handleDeleteTask = async () => {
     if (!deletingTaskId) return;
@@ -453,6 +514,10 @@ export const TasksPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // تحديث حالة المهمة
+  // ==========================================
+  
   const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
     try {
       await updateDoc(doc(db, 'tasks', taskId), { 
@@ -468,7 +533,7 @@ export const TasksPage: React.FC = () => {
   };
   
   // ==========================================
-  // دوال المرفقات
+  // رفع المرفقات
   // ==========================================
   
   const handleFileUpload = async (files: FileList | null) => {
@@ -515,6 +580,10 @@ export const TasksPage: React.FC = () => {
     setAttachments(prev => [...prev, ...uploadedFiles]);
   };
   
+  // ==========================================
+  // إزالة مرفق
+  // ==========================================
+  
   const handleRemoveAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
@@ -529,6 +598,15 @@ export const TasksPage: React.FC = () => {
       !excludeIds.includes(u.uid) &&
       (isTopManagement || u.department === userProfile?.department)
     );
+  };
+  
+  const getUserName = (uid: string) => {
+    const user = users.find(u => u.uid === uid);
+    return user?.name || 'مستخدم غير معروف';
+  };
+  
+  const getUserInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').slice(0, 2);
   };
   
   const handleAddAssignee = (uid: string) => {
@@ -576,6 +654,7 @@ export const TasksPage: React.FC = () => {
       
       setNewComment('');
       setViewingTask({ ...viewingTask, comments: updatedComments });
+      setCommentsList(updatedComments);
       toast.success('تم إضافة التعليق');
     } catch (error) {
       console.error('Error adding comment:', error);
@@ -588,15 +667,6 @@ export const TasksPage: React.FC = () => {
   // ==========================================
   // دوال مساعدة
   // ==========================================
-  
-  const getUserName = (uid: string) => {
-    const user = users.find(u => u.uid === uid);
-    return user?.name || 'مستخدم غير معروف';
-  };
-  
-  const getUserInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').slice(0, 2);
-  };
   
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -620,10 +690,11 @@ export const TasksPage: React.FC = () => {
   const TaskGridCard: React.FC<{ task: Task }> = ({ task }) => {
     const assigneesList = task.assigneesUids?.slice(0, 3) || [];
     const remainingCount = (task.assigneesUids?.length || 0) - 3;
+    const isOverdue = task.date < new Date().toISOString().split('T')[0] && task.status !== 'done';
     
     return (
       <div 
-        className="card cursor-pointer hover:translate-y-0 transition-all group"
+        className={`card cursor-pointer hover:translate-y-0 transition-all group ${isOverdue ? 'border-red-500/30' : ''}`}
         onClick={() => setViewingTask(task)}
       >
         {/* رأس البطاقة */}
@@ -636,6 +707,11 @@ export const TasksPage: React.FC = () => {
             }}>
               {STATUSES[task.status].label}
             </span>
+            {isOverdue && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded bg-red-500/20 text-red-500">
+                متأخرة
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -711,9 +787,11 @@ export const TasksPage: React.FC = () => {
   // ==========================================
   
   const TaskListItem: React.FC<{ task: Task }> = ({ task }) => {
+    const isOverdue = task.date < new Date().toISOString().split('T')[0] && task.status !== 'done';
+    
     return (
       <div 
-        className="flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all hover:bg-hv group"
+        className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all hover:bg-hv group ${isOverdue ? 'bg-red-500/5' : ''}`}
         onClick={() => setViewingTask(task)}
       >
         {/* حالة المهمة */}
@@ -808,13 +886,14 @@ export const TasksPage: React.FC = () => {
     
     const isCreator = viewingTask.createdByUid === userProfile?.uid;
     const canEdit = isTopManagement || isManager || isCreator;
+    const isOverdue = viewingTask.date < new Date().toISOString().split('T')[0] && viewingTask.status !== 'done';
     
     return (
       <div className="modal-overlay" onClick={() => setViewingTask(null)}>
         <div className="modal-content max-w-2xl" onClick={(e) => e.stopPropagation()}>
           {/* الرأس */}
           <div className="modal-header">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-lg font-bold">{viewingTask.title}</h3>
               <span className="badge" style={{ background: `${PRIORITIES[viewingTask.priority].color}20`, color: PRIORITIES[viewingTask.priority].color }}>
                 {PRIORITIES[viewingTask.priority].label}
@@ -822,6 +901,9 @@ export const TasksPage: React.FC = () => {
               <span className="badge" style={{ background: `${STATUSES[viewingTask.status].color}20`, color: STATUSES[viewingTask.status].color }}>
                 {STATUSES[viewingTask.status].label}
               </span>
+              {isOverdue && (
+                <span className="badge badge-danger">متأخرة</span>
+              )}
             </div>
             <button onClick={() => setViewingTask(null)} className="icon-btn">
               <FaTimes />
@@ -921,10 +1003,10 @@ export const TasksPage: React.FC = () => {
             
             {/* التعليقات */}
             <div>
-              <label className="text-sm font-medium">التعليقات</label>
+              <label className="text-sm font-medium">التعليقات ({commentsList.length})</label>
               <div className="mt-2 space-y-3 max-h-60 overflow-y-auto p-2 rounded-lg" style={{ background: 'var(--inp)' }}>
-                {viewingTask.comments && viewingTask.comments.length > 0 ? (
-                  viewingTask.comments.map(comment => (
+                {commentsList.length > 0 ? (
+                  commentsList.map(comment => (
                     <div key={comment.id} className="p-2 rounded-lg" style={{ background: 'var(--bg3)' }}>
                       <div className="flex items-center gap-2 mb-1">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold" style={{ background: 'var(--brand-secondary)' }}>
@@ -1049,6 +1131,7 @@ export const TasksPage: React.FC = () => {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className="input"
+                  min={new Date().toISOString().split('T')[0]}
                 />
               </div>
               <div>
@@ -1103,6 +1186,9 @@ export const TasksPage: React.FC = () => {
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </select>
+              {!isTopManagement && !isManager && (
+                <p className="text-xs text-gray-500 mt-1">لا يمكن تغيير الإدارة</p>
+              )}
             </div>
             
             {/* الوصف */}
@@ -1175,6 +1261,7 @@ export const TasksPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              <p className="text-[10px] text-gray-500 mt-1">سيتم إشعار المسؤولين عبر الإشعارات</p>
             </div>
             
             {/* المنشنات */}
@@ -1236,7 +1323,7 @@ export const TasksPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <p className="text-[10px] text-gray-500 mt-1">سيتم إشعار الأشخاص الممنشنين عبر البريد والإشعارات</p>
+              <p className="text-[10px] text-gray-500 mt-1">سيتم إشعار الأشخاص الممنشنين عبر الإشعارات</p>
             </div>
             
             {/* المرفقات */}
@@ -1254,7 +1341,7 @@ export const TasksPage: React.FC = () => {
                   className="hidden"
                   onChange={(e) => handleFileUpload(e.target.files)}
                 />
-                <FaUpload className="mx-auto mb-2 text-gray-500" />
+                <FaUpload className="mx-auto mb-2 text-gray-500" size={20} />
                 <p className="text-sm text-gray-500">اضغط لرفع ملفات</p>
                 <p className="text-xs text-gray-500 mt-1">الحد الأقصى 10 ميجابايت لكل ملف</p>
               </div>
@@ -1271,7 +1358,7 @@ export const TasksPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleRemoveAttachment(idx)}
-                        className="text-red-500 hover:text-red-600"
+                        className="text-red-500 hover:text-red-600 transition-colors"
                       >
                         <FaTrash size={12} />
                       </button>
@@ -1369,42 +1456,41 @@ export const TasksPage: React.FC = () => {
   // ==========================================
   
   const filteredTasksList = filteredTasks();
-  const stats = {
-    total: tasks.length,
-    todo: tasks.filter(t => t.status === 'todo').length,
-    progress: tasks.filter(t => t.status === 'progress').length,
-    done: tasks.filter(t => t.status === 'done').length,
-    high: tasks.filter(t => t.priority === 'high').length,
-    overdue: tasks.filter(t => t.date < new Date().toISOString().split('T')[0] && t.status !== 'done').length
-  };
   
   return (
-    <div className="space-y-4 animate-fadeIn">
-      {/* الرأس والإحصائيات */}
+    <div className="space-y-6 animate-fadeIn">
+      
+      {/* ==========================================
+           بطاقات الإحصائيات
+      ========================================== */}
+      
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => { setFilterStatus('all'); setFilterPriority('all'); }}>
           <p className="text-xs text-gray-500">إجمالي المهام</p>
-          <p className="text-2xl font-bold">{stats.total}</p>
+          <p className="text-2xl font-bold">{tasksStats.total}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterStatus('progress')}>
           <p className="text-xs text-gray-500">قيد التنفيذ</p>
-          <p className="text-2xl font-bold text-blue-500">{stats.progress}</p>
+          <p className="text-2xl font-bold text-blue-500">{tasksStats.progress}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterStatus('done')}>
           <p className="text-xs text-gray-500">مكتملة</p>
-          <p className="text-2xl font-bold text-green-500">{stats.done}</p>
+          <p className="text-2xl font-bold text-green-500">{tasksStats.done}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterPriority('high')}>
           <p className="text-xs text-gray-500">عالية الأولوية</p>
-          <p className="text-2xl font-bold text-red-500">{stats.high}</p>
+          <p className="text-2xl font-bold text-red-500">{tasksStats.high}</p>
         </div>
-        <div className="card p-3 text-center">
+        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setFilterStatus('todo')}>
           <p className="text-xs text-gray-500">متأخرة</p>
-          <p className="text-2xl font-bold text-orange-500">{stats.overdue}</p>
+          <p className="text-2xl font-bold text-orange-500">{tasksStats.overdue}</p>
         </div>
       </div>
       
-      {/* شريط التحكم */}
+      {/* ==========================================
+           شريط التحكم
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* شريط البحث */}
         <div className="relative flex-1 max-w-md">
@@ -1478,7 +1564,10 @@ export const TasksPage: React.FC = () => {
         </div>
       </div>
       
-      {/* لوحة الفلاتر */}
+      {/* ==========================================
+           لوحة الفلاتر
+      ========================================== */}
+      
       {showFilters && (
         <div className="card p-4 animate-fadeIn">
           <div className="flex flex-wrap items-center gap-4">
@@ -1532,6 +1621,7 @@ export const TasksPage: React.FC = () => {
                 setFilterStatus('all');
                 setFilterDepartment('all');
                 setFilterAssignee('all');
+                setSearchQuery('');
               }}
               className="text-sm text-brand-light hover:text-brand transition-colors"
             >
@@ -1541,14 +1631,17 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
       
-      {/* عرض المهام */}
+      {/* ==========================================
+           عرض المهام
+      ========================================== */}
+      
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
         </div>
       ) : filteredTasksList.length === 0 ? (
         <div className="card text-center py-12">
-          <FaTasks className="text-4xl mx-auto mb-3 text-gray-500" />
+          <FaTasks className="text-5xl mx-auto mb-4 text-gray-500" />
           <p className="text-gray-500">لا توجد مهام</p>
           <button onClick={openCreateModal} className="btn-primary mt-4">
             <FaPlus className="ml-2" /> إضافة مهمة جديدة
@@ -1570,7 +1663,10 @@ export const TasksPage: React.FC = () => {
         </div>
       )}
       
-      {/* النوافذ المنبثقة */}
+      {/* ==========================================
+           النوافذ المنبثقة
+      ========================================== */}
+      
       {showTaskModal && <TaskFormModal />}
       {viewingTask && <TaskViewModal />}
       {showDeleteConfirm && <DeleteConfirmModal />}

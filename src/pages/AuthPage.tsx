@@ -1,5 +1,6 @@
 // src/pages/AuthPage.tsx
 
+import { FaMoon, FaSun } from 'react-icons/fa';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';

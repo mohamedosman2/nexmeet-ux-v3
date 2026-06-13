@@ -1,5 +1,3 @@
-// src/pages/DepartmentsPage.tsx
-
 import React, { useState, useEffect } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
@@ -71,13 +69,19 @@ export const DepartmentsPage: React.FC = () => {
   const { userProfile } = useAuth();
   const { isTopManagement } = usePermissions();
   
+  // ==========================================
   // حالات البيانات
+  // ==========================================
+  
   const [departments, setDepartments] = useState<Department[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  // ==========================================
   // حالات النوافذ المنبثقة
+  // ==========================================
+  
   const [showDeptModal, setShowDeptModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -85,7 +89,10 @@ export const DepartmentsPage: React.FC = () => {
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [selectedDeptForManager, setSelectedDeptForManager] = useState<Department | null>(null);
   
+  // ==========================================
   // حالات النموذج
+  // ==========================================
+  
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formLocation, setFormLocation] = useState('');
@@ -94,7 +101,10 @@ export const DepartmentsPage: React.FC = () => {
   const [formBudget, setFormBudget] = useState('');
   const [formParentDept, setFormParentDept] = useState('');
   
+  // ==========================================
   // إحصائيات
+  // ==========================================
+  
   const [stats, setStats] = useState({
     total: 0,
     withManagers: 0,
@@ -160,12 +170,25 @@ export const DepartmentsPage: React.FC = () => {
     return users.find(u => u.uid === dept.managerUid);
   };
   
+  // ==========================================
+  // الحصول على عدد الموظفين في الإدارة
+  // ==========================================
+  
   const getEmployeeCount = (deptName: string) => {
     return users.filter(u => u.department === deptName && u.isActive).length;
   };
   
   // ==========================================
-  // عمليات الإدارات
+  // الحصول على الحروف الأولى للاسم
+  // ==========================================
+  
+  const getInitials = (name: string) => {
+    if (!name) return '?';
+    return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  };
+  
+  // ==========================================
+  // إضافة إدارة جديدة
   // ==========================================
   
   const handleAddDepartment = async () => {
@@ -176,14 +199,15 @@ export const DepartmentsPage: React.FC = () => {
     
     try {
       const newDept: Department = {
+        id: `dept_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         name: formName,
         managerUid: null,
-        description: formDescription || null,
-        location: formLocation || null,
-        phone: formPhone || null,
-        email: formEmail || null,
-        budget: formBudget ? parseFloat(formBudget) : null,
-        parentDepartment: formParentDept || null,
+        description: formDescription || undefined,
+        location: formLocation || undefined,
+        phone: formPhone || undefined,
+        email: formEmail || undefined,
+        budget: formBudget ? parseFloat(formBudget) : undefined,
+        parentDepartment: formParentDept || undefined,
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
@@ -198,6 +222,10 @@ export const DepartmentsPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // تحديث إدارة
+  // ==========================================
+  
   const handleEditDepartment = async () => {
     if (!editingDept || !formName) {
       toast.error('يرجى إدخال اسم الإدارة');
@@ -207,12 +235,12 @@ export const DepartmentsPage: React.FC = () => {
     try {
       await updateDoc(doc(db, 'departments', editingDept.id), {
         name: formName,
-        description: formDescription || null,
-        location: formLocation || null,
-        phone: formPhone || null,
-        email: formEmail || null,
-        budget: formBudget ? parseFloat(formBudget) : null,
-        parentDepartment: formParentDept || null,
+        description: formDescription || undefined,
+        location: formLocation || undefined,
+        phone: formPhone || undefined,
+        email: formEmail || undefined,
+        budget: formBudget ? parseFloat(formBudget) : undefined,
+        parentDepartment: formParentDept || undefined,
         updatedAt: Date.now()
       });
       
@@ -226,6 +254,10 @@ export const DepartmentsPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // حذف إدارة
+  // ==========================================
+  
   const handleDeleteDepartment = async () => {
     if (!deletingDeptId) return;
     
@@ -233,6 +265,7 @@ export const DepartmentsPage: React.FC = () => {
     if (dept?.name === 'الإدارة العليا') {
       toast.error('لا يمكن حذف الإدارة العليا');
       setShowDeleteConfirm(false);
+      setDeletingDeptId(null);
       return;
     }
     
@@ -240,6 +273,7 @@ export const DepartmentsPage: React.FC = () => {
     if (employeesInDept.length > 0) {
       toast.error(`لا يمكن حذف الإدارة لأن بها ${employeesInDept.length} موظف. قم بنقلهم أولاً.`);
       setShowDeleteConfirm(false);
+      setDeletingDeptId(null);
       return;
     }
     
@@ -253,6 +287,10 @@ export const DepartmentsPage: React.FC = () => {
       toast.error('حدث خطأ في حذف الإدارة');
     }
   };
+  
+  // ==========================================
+  // تعيين مدير للإدارة
+  // ==========================================
   
   const handleSetManager = async () => {
     if (!selectedDeptForManager) return;
@@ -272,6 +310,10 @@ export const DepartmentsPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // فتح نافذة تعديل إدارة
+  // ==========================================
+  
   const openEditModal = (dept: Department) => {
     setEditingDept(dept);
     setFormName(dept.name);
@@ -284,11 +326,19 @@ export const DepartmentsPage: React.FC = () => {
     setShowDeptModal(true);
   };
   
+  // ==========================================
+  // فتح نافذة إضافة إدارة جديدة
+  // ==========================================
+  
   const openAddModal = () => {
     setEditingDept(null);
     resetForm();
     setShowDeptModal(true);
   };
+  
+  // ==========================================
+  // إعادة تعيين النموذج
+  // ==========================================
   
   const resetForm = () => {
     setFormName('');
@@ -300,6 +350,10 @@ export const DepartmentsPage: React.FC = () => {
     setFormParentDept('');
   };
   
+  // ==========================================
+  // فتح نافذة تعيين مدير
+  // ==========================================
+  
   const openManagerModal = (dept: Department) => {
     setSelectedDeptForManager(dept);
     setShowManagerModal(true);
@@ -310,15 +364,16 @@ export const DepartmentsPage: React.FC = () => {
   // ==========================================
   
   const getAvailableManagers = () => {
+    if (!selectedDeptForManager) return [];
     return users.filter(u => 
       u.isActive && 
       (u.primaryRole === 'manager' || u.primaryRole === 'vp' || u.primaryRole === 'chairman') &&
-      u.department === selectedDeptForManager?.name
+      u.department === selectedDeptForManager.name
     );
   };
   
   // ==========================================
-  // تصدير البيانات
+  // تصدير البيانات إلى CSV
   // ==========================================
   
   const exportToCSV = () => {
@@ -342,7 +397,10 @@ export const DepartmentsPage: React.FC = () => {
     const csvRows = [headers.join(',')];
     
     for (const row of data) {
-      const values = headers.map(header => JSON.stringify(row[header as keyof typeof row] || ''));
+      const values = headers.map(header => {
+        const value = row[header as keyof typeof row];
+        return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+      });
       csvRows.push(values.join(','));
     }
     
@@ -355,6 +413,14 @@ export const DepartmentsPage: React.FC = () => {
     URL.revokeObjectURL(url);
     
     toast.success('تم تصدير البيانات');
+  };
+  
+  // ==========================================
+  // طباعة التقرير
+  // ==========================================
+  
+  const printReport = () => {
+    window.print();
   };
   
   // ==========================================
@@ -377,7 +443,11 @@ export const DepartmentsPage: React.FC = () => {
   
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* الرأس */}
+      
+      {/* ==========================================
+           الرأس
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">إدارة الإدارات</h1>
@@ -388,7 +458,10 @@ export const DepartmentsPage: React.FC = () => {
         </button>
       </div>
       
-      {/* بطاقات الإحصائيات */}
+      {/* ==========================================
+           بطاقات الإحصائيات
+      ========================================== */}
+      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="card p-4">
           <div className="flex items-center justify-between">
@@ -428,7 +501,10 @@ export const DepartmentsPage: React.FC = () => {
         </div>
       </div>
       
-      {/* شريط البحث */}
+      {/* ==========================================
+           شريط البحث
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -444,13 +520,16 @@ export const DepartmentsPage: React.FC = () => {
           <button onClick={exportToCSV} className="icon-btn" title="تصدير">
             <FaDownload size={14} />
           </button>
-          <button onClick={() => window.print()} className="icon-btn" title="طباعة">
+          <button onClick={printReport} className="icon-btn" title="طباعة">
             <FaPrint size={14} />
           </button>
         </div>
       </div>
       
-      {/* قائمة الإدارات */}
+      {/* ==========================================
+           قائمة الإدارات
+      ========================================== */}
+      
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
@@ -499,7 +578,7 @@ export const DepartmentsPage: React.FC = () => {
                     {manager ? (
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold" style={{ background: 'var(--brand-secondary)' }}>
-                          {manager.name.charAt(0)}
+                          {getInitials(manager.name)}
                         </div>
                         <span>{manager.name}</span>
                       </div>
@@ -533,6 +612,10 @@ export const DepartmentsPage: React.FC = () => {
         </div>
       )}
       
+      {/* ==========================================
+           رسالة عدم وجود نتائج
+      ========================================== */}
+      
       {filteredDepartments.length === 0 && !loading && (
         <div className="text-center py-12">
           <FaBuilding className="text-5xl mx-auto mb-4 text-gray-500" />
@@ -543,7 +626,10 @@ export const DepartmentsPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة إضافة/تعديل إدارة */}
+      {/* ==========================================
+           نافذة إضافة/تعديل إدارة
+      ========================================== */}
+      
       {showDeptModal && (
         <div className="modal-overlay" onClick={() => setShowDeptModal(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -640,7 +726,10 @@ export const DepartmentsPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة تعيين مدير */}
+      {/* ==========================================
+           نافذة تعيين مدير
+      ========================================== */}
+      
       {showManagerModal && selectedDeptForManager && (
         <div className="modal-overlay" onClick={() => setShowManagerModal(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -690,7 +779,10 @@ export const DepartmentsPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة تأكيد الحذف */}
+      {/* ==========================================
+           نافذة تأكيد الحذف
+      ========================================== */}
+      
       {showDeleteConfirm && (
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>

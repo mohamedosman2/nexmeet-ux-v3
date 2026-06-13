@@ -1,5 +1,3 @@
-// src/pages/ChatPage.tsx
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
 import { db, storage, uploadFile } from '../config/firebase';
@@ -50,7 +48,15 @@ import {
   FaGrinTears,
   FaGrinHearts,
   FaGrinStars,
-  FaGrinWink
+  FaGrinWink,
+  FaComments,
+  FaSpinner,
+  FaList,
+  FaThLarge,
+  FaTag,
+  FaExclamationTriangle,
+  FaChevronRight,
+  FaChevronLeft
 } from 'react-icons/fa';
 
 // ==========================================
@@ -169,7 +175,6 @@ export const ChatPage: React.FC = () => {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef2 = useRef<HTMLInputElement>(null);
   
   // ==========================================
   // جلب المستخدمين
@@ -320,27 +325,6 @@ export const ChatPage: React.FC = () => {
       };
       
       await addDoc(collection(db, 'messages'), messageData);
-      
-      // تحديث آخر رسالة في المجموعة
-      await updateDoc(doc(db, 'chatGroups', activeGroupId), {
-        lastMessage: inputText.trim(),
-        lastMessageTime: Date.now()
-      }).catch(() => {});
-      
-      // إرسال إشعارات للمنشنات
-      for (const uid of mentionUids) {
-        if (uid !== userProfile.uid) {
-          await addDoc(collection(db, 'notifications'), {
-            targetUid: uid,
-            title: 'إشارة في محادثة',
-            message: `${userProfile.name} أشار إليك في محادثة ${getGroupName(activeGroupId)}`,
-            type: 'chat',
-            relatedId: activeGroupId,
-            isRead: false,
-            createdAt: Date.now()
-          });
-        }
-      }
       
       // تنظيف الحقول
       setInputText('');

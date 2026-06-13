@@ -13,6 +13,7 @@ import {
   doc, 
   orderBy,
   getDocs,
+  addDoc,
   writeBatch
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -85,7 +86,10 @@ export const UsersPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const { isTopManagement, isManager, canAccessAdminPanel } = usePermissions();
   
+  // ==========================================
   // حالات البيانات
+  // ==========================================
+  
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +99,10 @@ export const UsersPage: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   
+  // ==========================================
   // حالات النوافذ المنبثقة
+  // ==========================================
+  
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -103,7 +110,10 @@ export const UsersPage: React.FC = () => {
   const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
   const [resetPasswordEmail, setResetPasswordEmail] = useState('');
   
+  // ==========================================
   // حالات النموذج
+  // ==========================================
+  
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
@@ -112,7 +122,10 @@ export const UsersPage: React.FC = () => {
   const [formPassword, setFormPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
+  // ==========================================
   // إحصائيات
+  // ==========================================
+  
   const [stats, setStats] = useState({
     total: 0,
     active: 0,
@@ -128,6 +141,10 @@ export const UsersPage: React.FC = () => {
   
   useEffect(() => {
     if (!canAccessAdminPanel) return;
+    
+    // ==========================================
+    // جلب المستخدمين
+    // ==========================================
     
     const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
@@ -154,6 +171,10 @@ export const UsersPage: React.FC = () => {
       setStats({ total, active, inactive, managers, employees, newThisMonth });
       setLoading(false);
     });
+    
+    // ==========================================
+    // جلب الإدارات
+    // ==========================================
     
     const unsubscribeDepts = onSnapshot(collection(db, 'departments'), (snapshot) => {
       const fetchedDepts: Department[] = [];
@@ -198,7 +219,15 @@ export const UsersPage: React.FC = () => {
   });
   
   // ==========================================
-  // عمليات المستخدمين
+  // الحصول على الحروف الأولى للاسم
+  // ==========================================
+  
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  };
+  
+  // ==========================================
+  // تفعيل مستخدم
   // ==========================================
   
   const handleActivateUser = async (userId: string) => {
@@ -211,6 +240,10 @@ export const UsersPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // تعطيل مستخدم
+  // ==========================================
+  
   const handleDeactivateUser = async (userId: string) => {
     if (!window.confirm('هل أنت متأكد من تعطيل هذا المستخدم؟')) return;
     
@@ -222,6 +255,10 @@ export const UsersPage: React.FC = () => {
       toast.error('حدث خطأ في تعطيل المستخدم');
     }
   };
+  
+  // ==========================================
+  // حذف مستخدم
+  // ==========================================
   
   const handleDeleteUser = async () => {
     if (!deletingUserId) return;
@@ -237,6 +274,10 @@ export const UsersPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // إعادة تعيين كلمة المرور
+  // ==========================================
+  
   const handleResetPassword = async () => {
     if (!resetPasswordEmail) return;
     
@@ -250,6 +291,10 @@ export const UsersPage: React.FC = () => {
       toast.error('حدث خطأ في إرسال رابط إعادة التعيين');
     }
   };
+  
+  // ==========================================
+  // تبديل دور المدير
+  // ==========================================
   
   const handleToggleManagerRole = async (userId: string, currentRole: string, department: string) => {
     const newRole = currentRole === 'manager' ? 'employee' : 'manager';
@@ -277,6 +322,10 @@ export const UsersPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // تبديل الصلاحية الاستثنائية
+  // ==========================================
+  
   const handleToggleCustomAdminAccess = async (userId: string, currentAccess: boolean) => {
     try {
       await updateDoc(doc(db, 'users', userId), { hasCustomAdminAccess: !currentAccess });
@@ -285,6 +334,36 @@ export const UsersPage: React.FC = () => {
       console.error('Error toggling custom admin access:', error);
       toast.error('حدث خطأ');
     }
+  };
+  
+  // ==========================================
+  // فتح نافذة تعديل مستخدم
+  // ==========================================
+  
+  const openEditModal = (user: User) => {
+    setEditingUser(user);
+    setFormName(user.name);
+    setFormEmail(user.email);
+    setFormPhone(user.phone || '');
+    setFormDepartment(user.department);
+    setFormRole(user.primaryRole === 'manager' ? 'manager' : 'employee');
+    setFormPassword('');
+    setShowUserModal(true);
+  };
+  
+  // ==========================================
+  // فتح نافذة إضافة مستخدم
+  // ==========================================
+  
+  const openAddModal = () => {
+    setEditingUser(null);
+    setFormName('');
+    setFormEmail('');
+    setFormPhone('');
+    setFormPassword('');
+    setFormDepartment(departments[0]?.name || '');
+    setFormRole('employee');
+    setShowUserModal(true);
   };
   
   // ==========================================
@@ -339,6 +418,10 @@ export const UsersPage: React.FC = () => {
     }
   };
   
+  // ==========================================
+  // تحديث مستخدم
+  // ==========================================
+  
   const handleEditUser = async () => {
     if (!editingUser || !formName || !formDepartment) {
       toast.error('يرجى ملء الحقول المطلوبة');
@@ -362,30 +445,8 @@ export const UsersPage: React.FC = () => {
     }
   };
   
-  const openEditModal = (user: User) => {
-    setEditingUser(user);
-    setFormName(user.name);
-    setFormEmail(user.email);
-    setFormPhone(user.phone || '');
-    setFormDepartment(user.department);
-    setFormRole(user.primaryRole === 'manager' ? 'manager' : 'employee');
-    setFormPassword('');
-    setShowUserModal(true);
-  };
-  
-  const openAddModal = () => {
-    setEditingUser(null);
-    setFormName('');
-    setFormEmail('');
-    setFormPhone('');
-    setFormPassword('');
-    setFormDepartment(departments[0]?.name || '');
-    setFormRole('employee');
-    setShowUserModal(true);
-  };
-  
   // ==========================================
-  // تصدير البيانات
+  // تصدير البيانات إلى CSV
   // ==========================================
   
   const exportToCSV = () => {
@@ -404,7 +465,10 @@ export const UsersPage: React.FC = () => {
     const csvRows = [headers.join(',')];
     
     for (const row of data) {
-      const values = headers.map(header => JSON.stringify(row[header as keyof typeof row] || ''));
+      const values = headers.map(header => {
+        const value = row[header as keyof typeof row];
+        return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+      });
       csvRows.push(values.join(','));
     }
     
@@ -413,25 +477,18 @@ export const UsersPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
     link.setAttribute('download', `users_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
     toast.success('تم تصدير البيانات');
   };
   
+  // ==========================================
+  // طباعة التقرير
+  // ==========================================
+  
   const printReport = () => {
     window.print();
-  };
-  
-  // ==========================================
-  // الحصول على الحروف الأولى
-  // ==========================================
-  
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
   
   // ==========================================
@@ -454,7 +511,11 @@ export const UsersPage: React.FC = () => {
   
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* الرأس */}
+      
+      {/* ==========================================
+           الرأس
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">إدارة المستخدمين</h1>
@@ -465,31 +526,52 @@ export const UsersPage: React.FC = () => {
         </button>
       </div>
       
-      {/* بطاقات الإحصائيات */}
+      {/* ==========================================
+           بطاقات الإحصائيات
+      ========================================== */}
+      
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => { setSelectedStatus('all'); setSelectedRole('all'); }}>
+        <div 
+          className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" 
+          onClick={() => { setSelectedStatus('all'); setSelectedRole('all'); }}
+        >
           <p className="text-xs text-gray-500">إجمالي المستخدمين</p>
           <p className="text-2xl font-bold">{stats.total}</p>
         </div>
-        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setSelectedStatus('active')}>
+        <div 
+          className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" 
+          onClick={() => setSelectedStatus('active')}
+        >
           <p className="text-xs text-gray-500">نشط</p>
           <p className="text-2xl font-bold text-green-500">{stats.active}</p>
         </div>
-        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setSelectedStatus('inactive')}>
+        <div 
+          className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" 
+          onClick={() => setSelectedStatus('inactive')}
+        >
           <p className="text-xs text-gray-500">غير نشط</p>
           <p className="text-2xl font-bold text-red-500">{stats.inactive}</p>
         </div>
-        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setSelectedRole('manager')}>
+        <div 
+          className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" 
+          onClick={() => setSelectedRole('manager')}
+        >
           <p className="text-xs text-gray-500">مديرين</p>
           <p className="text-2xl font-bold text-blue-500">{stats.managers}</p>
         </div>
-        <div className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" onClick={() => setSelectedRole('employee')}>
+        <div 
+          className="card p-3 text-center cursor-pointer hover:bg-hv transition-colors" 
+          onClick={() => setSelectedRole('employee')}
+        >
           <p className="text-xs text-gray-500">موظفين</p>
           <p className="text-2xl font-bold text-purple-500">{stats.employees}</p>
         </div>
       </div>
       
-      {/* شريط البحث والفلترة */}
+      {/* ==========================================
+           شريط البحث والفلترة
+      ========================================== */}
+      
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -502,7 +584,10 @@ export const UsersPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowFilters(!showFilters)} className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}>
+          <button 
+            onClick={() => setShowFilters(!showFilters)} 
+            className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}
+          >
             <FaFilter size={14} />
           </button>
           <button onClick={exportToCSV} className="icon-btn" title="تصدير">
@@ -514,7 +599,10 @@ export const UsersPage: React.FC = () => {
         </div>
       </div>
       
-      {/* فلاتر إضافية */}
+      {/* ==========================================
+           فلاتر إضافية
+      ========================================== */}
+      
       {showFilters && (
         <div className="card p-4 animate-fadeIn">
           <div className="flex flex-wrap gap-4">
@@ -574,7 +662,10 @@ export const UsersPage: React.FC = () => {
         </div>
       )}
       
-      {/* جدول المستخدمين */}
+      {/* ==========================================
+           جدول المستخدمين
+      ========================================== */}
+      
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
@@ -592,7 +683,7 @@ export const UsersPage: React.FC = () => {
                 <th className="text-right p-3">الحالة</th>
                 <th className="text-right p-3">تاريخ الانضمام</th>
                 <th className="text-right p-3">الإجراءات</th>
-              </table>
+              </tr>
             </thead>
             <tbody>
               {filteredUsers.map(user => {
@@ -730,7 +821,10 @@ export const UsersPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة إضافة/تعديل مستخدم */}
+      {/* ==========================================
+           نافذة إضافة/تعديل مستخدم
+      ========================================== */}
+      
       {showUserModal && (
         <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -850,7 +944,10 @@ export const UsersPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة تأكيد الحذف */}
+      {/* ==========================================
+           نافذة تأكيد الحذف
+      ========================================== */}
+      
       {showDeleteConfirm && (
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -881,7 +978,10 @@ export const UsersPage: React.FC = () => {
         </div>
       )}
       
-      {/* نافذة تأكيد إعادة تعيين كلمة المرور */}
+      {/* ==========================================
+           نافذة تأكيد إعادة تعيين كلمة المرور
+      ========================================== */}
+      
       {showResetPasswordConfirm && (
         <div className="modal-overlay" onClick={() => setShowResetPasswordConfirm(false)}>
           <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>

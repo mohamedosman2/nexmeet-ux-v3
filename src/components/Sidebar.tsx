@@ -37,6 +37,7 @@ interface MenuItem {
   showBadge?: boolean;
   roles?: ('chairman' | 'vp' | 'manager' | 'employee')[];
   permissions?: string[];
+  type?: 'divider';  // أضف هذا السطر
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, isMobile = false, onClose }) => {
