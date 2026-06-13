@@ -265,3 +265,55 @@ export function useQueryParams() {
     const params = new URLSearchParams(location.search);
     return params.get(key);
   }, [location.search]);
+  
+  const getAllParams = useCallback((): Record<string, string> => {
+    const params = new URLSearchParams(location.search);
+    const result: Record<string, string> = {};
+    params.forEach((value, key) => {
+      result[key] = value;
+    });
+    return result;
+  }, [location.search]);
+  
+  const setParam = useCallback((key: string, value: string) => {
+    const params = new URLSearchParams(location.search);
+    params.set(key, value);
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+  
+  const setParams = useCallback((paramsObj: Record<string, string>) => {
+    const params = new URLSearchParams(location.search);
+    Object.entries(paramsObj).forEach(([key, value]) => {
+      params.set(key, value);
+    });
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+  
+  const removeParam = useCallback((key: string) => {
+    const params = new URLSearchParams(location.search);
+    params.delete(key);
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+  
+  const removeParams = useCallback((keys: string[]) => {
+    const params = new URLSearchParams(location.search);
+    keys.forEach(key => {
+      params.delete(key);
+    });
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+  
+  const clearAllParams = useCallback(() => {
+    navigate(location.pathname, { replace: true });
+  }, [location.pathname, navigate]);
+  
+  return {
+    getParam,
+    getAllParams,
+    setParam,
+    setParams,
+    removeParam,
+    removeParams,
+    clearAllParams
+  };
+}

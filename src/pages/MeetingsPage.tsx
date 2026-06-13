@@ -903,8 +903,6 @@ export const MeetingsPage: React.FC = () => {
               <FaMapMarkerAlt size={14} />
             </div>
           )}
-          // src/pages/MeetingsPage.tsx (الجزء الأخير)
-
         </div>
         
         {/* العنوان */}
@@ -1769,4 +1767,148 @@ export const MeetingsPage: React.FC = () => {
           <p className="text-xs text-gray-500">القادمة</p>
           <p className="text-2xl font-bold text-blue-500">{stats.upcoming}</p>
         </div>
-        <div className="card p-3 text
+        <div className="card p-3 text-center">
+          <p className="text-xs text-gray-500">السابقة</p>
+          <p className="text-2xl font-bold text-gray-500">{stats.past}</p>
+        </div>
+        <div className="card p-3 text-center">
+          <p className="text-xs text-gray-500">عن بُعد</p>
+          <p className="text-2xl font-bold text-purple-500">{stats.online}</p>
+        </div>
+        <div className="card p-3 text-center">
+          <p className="text-xs text-gray-500">حضوري</p>
+          <p className="text-2xl font-bold text-orange-500">{stats.offline}</p>
+        </div>
+      </div>
+      
+      {/* شريط التحكم */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
+          <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="بحث في الاجتماعات..."
+            className="input pr-9"
+          />
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: 'var(--bd)' }}>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 transition-all ${viewMode === 'list' ? 'bg-brand text-white' : 'hover:bg-hv'}`}
+            >
+              <FaList />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 transition-all ${viewMode === 'grid' ? 'bg-brand text-white' : 'hover:bg-hv'}`}
+            >
+              <FaThLarge />
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1.5 transition-all ${viewMode === 'calendar' ? 'bg-brand text-white' : 'hover:bg-hv'}`}
+            >
+              <FaCalendarAlt />
+            </button>
+          </div>
+          
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}
+          >
+            <FaFilter />
+          </button>
+          
+          <button onClick={openCreateModal} className="btn-primary">
+            <FaPlus className="ml-2" /> اجتماع جديد
+          </button>
+        </div>
+      </div>
+      
+      {/* لوحة الفلاتر */}
+      {showFilters && (
+        <div className="card p-4 animate-fadeIn">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">النوع:</span>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value as MeetingType | 'all')}
+                className="input text-sm py-1.5"
+              >
+                <option value="all">الكل</option>
+                <option value="online">عن بُعد</option>
+                <option value="offline">حضوري</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">التاريخ:</span>
+              <select
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value as 'all' | 'today' | 'upcoming' | 'past')}
+                className="input text-sm py-1.5"
+              >
+                <option value="all">الكل</option>
+                <option value="today">اليوم</option>
+                <option value="upcoming">القادمة</option>
+                <option value="past">السابقة</option>
+              </select>
+            </div>
+            
+            <button
+              onClick={() => {
+                setFilterType('all');
+                setFilterDate('all');
+              }}
+              className="text-sm text-brand-light hover:text-brand transition-colors"
+            >
+              إعادة تعيين
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* عرض الاجتماعات حسب الوضع */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="spinner"></div>
+        </div>
+      ) : (
+        <>
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredMeetingsList.map(meeting => (
+                <MeetingGridCard key={meeting.id} meeting={meeting} />
+              ))}
+            </div>
+          )}
+          
+          {viewMode === 'list' && (
+            <div className="card p-0 overflow-hidden">
+              <div className="divide-y" style={{ borderColor: 'var(--bd)' }}>
+                {filteredMeetingsList.map(meeting => (
+                  <MeetingListItem key={meeting.id} meeting={meeting} />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {viewMode === 'calendar' && <CalendarView />}
+        </>
+      )}
+      
+      {/* النوافذ المنبثقة */}
+      {showMeetingModal && <MeetingFormModal />}
+      {viewingMeeting && <MeetingViewModal />}
+      {showJoinModal && <JoinMeetingModal />}
+      {showDeleteConfirm && <DeleteConfirmModal />}
+    </div>
+  );
+};
+
+export default MeetingsPage;

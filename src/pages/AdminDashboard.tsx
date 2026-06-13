@@ -358,8 +358,6 @@ export const AdminDashboard: React.FC = () => {
     }
     
     try {
-      // إنشاء مستخدم في Firebase Auth (هذا يتطلب Cloud Function أو سيتم إنشاؤه عند أول تسجيل دخول)
-      // هنا سنضيف المستخدم مباشرة إلى Firestore
       const newUser: User = {
         uid: `temp_${Date.now()}`,
         name: newUserName,
@@ -375,7 +373,6 @@ export const AdminDashboard: React.FC = () => {
       await addDoc(collection(db, 'users'), newUser);
       toast.success('تم إضافة المستخدم بنجاح');
       
-      // تنظيف الحقول
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPhone('');
@@ -395,13 +392,11 @@ export const AdminDashboard: React.FC = () => {
   
   const handleApproveRequest = async (request: JoinRequest) => {
     try {
-      // تحديث حالة الطلب
       if (request.status === 'pending_manager') {
         await updateDoc(doc(db, 'joinRequests', request.id), { status: 'pending_chairman' });
         toast.success('تمت الموافقة المبدئية، في انتظار موافقة الرئيس');
       } else if (request.status === 'pending_chairman') {
         await updateDoc(doc(db, 'joinRequests', request.id), { status: 'approved' });
-        // تفعيل المستخدم
         await updateDoc(doc(db, 'users', request.uid), { isActive: true });
         toast.success('تمت الموافقة على طلب الانضمام');
       }
@@ -552,7 +547,6 @@ export const AdminDashboard: React.FC = () => {
   
   const UsersTab: React.FC = () => (
     <div className="space-y-4">
-      {/* شريط البحث والفلترة */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500" size={14} />
@@ -584,7 +578,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* جدول المستخدمين */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -596,7 +589,7 @@ export const AdminDashboard: React.FC = () => {
               <th className="text-right p-3">الحالة</th>
               <th className="text-right p-3">آخر دخول</th>
               <th className="text-right p-3">إجراءات</th>
-             </tr>
+              </tr>
           </thead>
           <tbody>
             {filteredUsers.map(user => {
@@ -842,7 +835,6 @@ export const AdminDashboard: React.FC = () => {
           </div>
           
           <div className="modal-body space-y-4">
-            {/* صلاحية استثنائية */}
             <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--hv)' }}>
               <div>
                 <p className="font-medium">صلاحية لوحة التحكم</p>
@@ -859,7 +851,6 @@ export const AdminDashboard: React.FC = () => {
               </label>
             </div>
             
-            {/* الإدارات المسموح بها */}
             <div>
               <label className="block text-sm font-medium mb-2">إدارات إضافية للمستخدم</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -886,7 +877,6 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
             
-            {/* الألقاب الإضافية */}
             <div>
               <label className="block text-sm font-medium mb-2">الألقاب والمناصب الإضافية</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -900,9 +890,6 @@ export const AdminDashboard: React.FC = () => {
                 ))}
               </div>
               <div className="flex gap-2">
-                <input
-                 // src/pages/AdminDashboard.tsx (الجزء الأخير)
-
                 <input
                   type="text"
                   value={newTitle}
@@ -1117,7 +1104,6 @@ export const AdminDashboard: React.FC = () => {
   
   const OverviewTab: React.FC = () => (
     <div className="space-y-6">
-      {/* بطاقات الإحصائيات */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="إجمالي المستخدمين"
@@ -1152,7 +1138,6 @@ export const AdminDashboard: React.FC = () => {
         />
       </div>
       
-      {/* إحصائيات إضافية */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
           <h3 className="font-bold mb-4">توزيع المستخدمين حسب الإدارة</h3>
@@ -1201,7 +1186,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* النشاطات الأخيرة */}
       <ActivityTab />
     </div>
   );
@@ -1226,7 +1210,6 @@ export const AdminDashboard: React.FC = () => {
   
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* عنوان الصفحة */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">لوحة التحكم الإدارية</h1>
@@ -1242,7 +1225,6 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* تبويبات التنقل */}
       <div className="flex flex-wrap gap-2 border-b" style={{ borderColor: 'var(--bd)' }}>
         <button
           onClick={() => setActiveTab('overview')}
@@ -1281,7 +1263,6 @@ export const AdminDashboard: React.FC = () => {
         </button>
       </div>
       
-      {/* محتوى التبويب النشط */}
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="spinner"></div>
@@ -1296,7 +1277,6 @@ export const AdminDashboard: React.FC = () => {
         </>
       )}
       
-      {/* النوافذ المنبثقة */}
       {showAddUserModal && <AddUserModal />}
       {showRolesModal && <RolesModal />}
       {showDeleteConfirm && <DeleteConfirmModal />}

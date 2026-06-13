@@ -933,9 +933,6 @@ export const ChatPage: React.FC = () => {
                 <div key={idx} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: 'var(--hv)' }}>
                   {getFileIcon(att.type)}
                   <span>{att.name}</span>
-                  <button onClick={() => setAttachments(
-                    // src/pages/ChatPage.tsx (الجزء الأخير)
-
                   <button onClick={() => setAttachments(attachments.filter((_, i) => i !== idx))}>
                     <FaTimes size={10} />
                   </button>

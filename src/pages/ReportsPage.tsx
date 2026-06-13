@@ -573,7 +573,7 @@ export const ReportsPage: React.FC = () => {
                </tr>
             ))}
           </tbody>
-         </table>
+        </table>
       </div>
     </div>
   );
@@ -616,7 +616,7 @@ export const ReportsPage: React.FC = () => {
                </tr>
             ))}
           </tbody>
-         </table>
+        </table>
       </div>
     </div>
   );
@@ -644,7 +644,7 @@ export const ReportsPage: React.FC = () => {
               <th className="text-right p-3">الدور</th>
               <th className="text-right p-3">الحالة</th>
               <th className="text-right p-3">تاريخ الانضمام</th>
-             </tr>
+             </table>
           </thead>
           <tbody>
             {usersData.filter(u => selectedDepartment === 'all' || u.department === selectedDepartment).map(user => (
@@ -663,10 +663,10 @@ export const ReportsPage: React.FC = () => {
                   </span>
                 </td>
                 <td className="p-3">{format(user.createdAt, 'dd/MM/yyyy', { locale: arSA })}</td>
-               </tr>
+              </tr>
             ))}
           </tbody>
-         </table>
+        </table>
       </div>
     </div>
   );
@@ -726,11 +726,11 @@ export const ReportsPage: React.FC = () => {
                     </div>
                   </td>
                   <td className="p-3">{employeeCount}</td>
-                 </tr>
+                </tr>
               );
             })}
           </tbody>
-         </table>
+        </table>
       </div>
     </div>
   );

@@ -984,9 +984,6 @@ export const AuthPage: React.FC = () => {
             </text>
           </svg>
           <h1 className="text-xl font-bold text-white mb-1">شركة UX - خبراء المتحدة</h1>
-          <p className="text-sm"
-          // src/pages/AuthPage.tsx (الجزء الأخير)
-
           <p className="text-sm" style={{ color: 'var(--tx2)' }}>نظام إدارة المهام والتقويم المتكامل</p>
         </div>
         

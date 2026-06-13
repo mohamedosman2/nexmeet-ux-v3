@@ -903,4 +903,17 @@ export const UsersPage: React.FC = () => {
             
             <div className="modal-footer">
               <button onClick={() => setShowResetPasswordConfirm(false)} className="btn-outline">
-               
+                إلغاء
+              </button>
+              <button onClick={handleResetPassword} className="btn-primary">
+                تأكيد الإرسال
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default UsersPage;

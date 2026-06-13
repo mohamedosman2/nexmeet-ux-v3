@@ -17,7 +17,7 @@ const MeetingsPage = lazy(() => import('./pages/MeetingsPage').then(module => ({
 const ChatPage = lazy(() => import('./pages/ChatPage').then(module => ({ default: module.ChatPage })));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then(module => ({ default: module.NotificationsPage })));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then(module => ({ default: module.ProfilePage })));
-const AdminDashboard = lazy(() => import('./pages/DashboardPage').then(module => ({ default: module.AdminDashboard })));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module => ({ default: module.AdminDashboard }))); // ✅ التغيير الوحيد: DashboardPage -> AdminDashboard
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage').then(module => ({ default: module.DepartmentsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(module => ({ default: module.UsersPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
