@@ -1,20 +1,16 @@
-// src/pages/UsersPage.tsx
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
 import { db } from '../config/firebase';
 import { 
   collection, 
-  query, 
-  where, 
   onSnapshot, 
   updateDoc, 
   deleteDoc, 
   doc, 
-  orderBy,
-  getDocs,
   addDoc,
-  writeBatch
+  query,
+  where,
+  getDocs
 } from 'firebase/firestore';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../config/firebase';
@@ -79,7 +75,7 @@ interface Department {
 }
 
 // ==========================================
-// صفحة إدارة المستخدمين
+// صفحة إدارة المستخدمين الرئيسية
 // ==========================================
 
 export const UsersPage: React.FC = () => {
@@ -109,6 +105,12 @@ export const UsersPage: React.FC = () => {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
   const [resetPasswordEmail, setResetPasswordEmail] = useState('');
+  const [showRolesModal, setShowRolesModal] = useState(false);
+  const [selectedUserForRoles, setSelectedUserForRoles] = useState<User | null>(null);
+  const [customAdminAccess, setCustomAdminAccess] = useState(false);
+  const [accessibleDepts, setAccessibleDepts] = useState<string[]>([]);
+  const [additionalTitles, setAdditionalTitles] = useState<string[]>([]);
+  const [newTitle, setNewTitle] = useState('');
   
   // ==========================================
   // حالات النموذج
@@ -136,24 +138,21 @@ export const UsersPage: React.FC = () => {
   });
   
   // ==========================================
-  // جلب البيانات
+  // جلب البيانات من Firebase
   // ==========================================
   
   useEffect(() => {
     if (!canAccessAdminPanel) return;
     
-    // ==========================================
     // جلب المستخدمين
-    // ==========================================
-    
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
       snapshot.forEach((doc) => {
         fetchedUsers.push({ uid: doc.id, ...doc.data() } as User);
       });
       
-      // ترتيب حسب التاريخ
-      fetchedUsers.sort((a, b) => b.createdAt - a.createdAt);
+      // ترتيب حسب الاسم
+      fetchedUsers.sort((a, b) => a.name.localeCompare(b.name));
       setUsers(fetchedUsers);
       
       // تحديث الإحصائيات
@@ -172,20 +171,17 @@ export const UsersPage: React.FC = () => {
       setLoading(false);
     });
     
-    // ==========================================
     // جلب الإدارات
-    // ==========================================
-    
     const unsubscribeDepts = onSnapshot(collection(db, 'departments'), (snapshot) => {
       const fetchedDepts: Department[] = [];
       snapshot.forEach((doc) => {
-        fetchedDepts.push({ id: doc.id, ...doc.data() } as Department);
+        fetchedDepts.push({ id: doc.id, name: doc.data().name, managerUid: doc.data().managerUid, createdAt: doc.data().createdAt });
       });
       setDepartments(fetchedDepts);
     });
     
     return () => {
-      unsubscribe();
+      unsubscribeUsers();
       unsubscribeDepts();
     };
   }, [canAccessAdminPanel]);
@@ -223,6 +219,7 @@ export const UsersPage: React.FC = () => {
   // ==========================================
   
   const getInitials = (name: string) => {
+    if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
   };
   
@@ -334,6 +331,77 @@ export const UsersPage: React.FC = () => {
       console.error('Error toggling custom admin access:', error);
       toast.error('حدث خطأ');
     }
+  };
+  
+  // ==========================================
+  // فتح نافذة تعديل صلاحيات المستخدم (الألقاب والإدارات الإضافية)
+  // ==========================================
+  
+  const openRolesModal = (user: User) => {
+    setSelectedUserForRoles(user);
+    setCustomAdminAccess(user.hasCustomAdminAccess || false);
+    setAccessibleDepts(user.accessibleDepartments || []);
+    setAdditionalTitles(user.additionalTitles || []);
+    setShowRolesModal(true);
+  };
+  
+  // ==========================================
+  // حفظ الصلاحيات المتقدمة
+  // ==========================================
+  
+  const handleSaveRoles = async () => {
+    if (!selectedUserForRoles) return;
+    
+    try {
+      await updateDoc(doc(db, 'users', selectedUserForRoles.uid), {
+        hasCustomAdminAccess: customAdminAccess,
+        accessibleDepartments: accessibleDepts,
+        additionalTitles: additionalTitles,
+        updatedAt: Date.now()
+      });
+      toast.success('تم تحديث الصلاحيات بنجاح');
+      setShowRolesModal(false);
+    } catch (error) {
+      console.error('Error saving roles:', error);
+      toast.error('حدث خطأ في تحديث الصلاحيات');
+    }
+  };
+  
+  // ==========================================
+  // إضافة إدارة يمكن للمستخدم الوصول إليها
+  // ==========================================
+  
+  const handleAddAccessibleDept = (dept: string) => {
+    if (!accessibleDepts.includes(dept)) {
+      setAccessibleDepts([...accessibleDepts, dept]);
+    }
+  };
+  
+  // ==========================================
+  // إزالة إدارة من قائمة الإدارات المسموحة
+  // ==========================================
+  
+  const handleRemoveAccessibleDept = (dept: string) => {
+    setAccessibleDepts(accessibleDepts.filter(d => d !== dept));
+  };
+  
+  // ==========================================
+  // إضافة لقب إضافي للمستخدم
+  // ==========================================
+  
+  const handleAddTitle = () => {
+    if (newTitle.trim() && !additionalTitles.includes(newTitle.trim())) {
+      setAdditionalTitles([...additionalTitles, newTitle.trim()]);
+      setNewTitle('');
+    }
+  };
+  
+  // ==========================================
+  // إزالة لقب إضافي من المستخدم
+  // ==========================================
+  
+  const handleRemoveTitle = (title: string) => {
+    setAdditionalTitles(additionalTitles.filter(t => t !== title));
   };
   
   // ==========================================
@@ -456,6 +524,8 @@ export const UsersPage: React.FC = () => {
       الجوال: user.phone,
       الإدارة: user.department,
       الدور: user.primaryRole === 'chairman' ? 'رئيس مجلس الإدارة' : user.primaryRole === 'vp' ? 'نائب رئيس' : user.primaryRole === 'manager' ? 'مدير' : 'موظف',
+      الألقاب_الإضافية: user.additionalTitles.join(', '),
+      الصلاحية_الاستثنائية: user.hasCustomAdminAccess ? 'نعم' : 'لا',
       الحالة: user.isActive ? 'نشط' : 'غير نشط',
       تاريخ_الانضمام: format(user.createdAt, 'dd/MM/yyyy', { locale: arSA }),
       آخر_دخول: user.lastLoginAt ? format(user.lastLoginAt, 'dd/MM/yyyy', { locale: arSA }) : '-'
@@ -467,7 +537,10 @@ export const UsersPage: React.FC = () => {
     for (const row of data) {
       const values = headers.map(header => {
         const value = row[header as keyof typeof row];
-        return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+        if (typeof value === 'string') {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
       });
       csvRows.push(values.join(','));
     }
@@ -492,7 +565,317 @@ export const UsersPage: React.FC = () => {
   };
   
   // ==========================================
-  // التحقق من الصلاحيات
+  // نافذة تعديل الصلاحيات المتقدمة
+  // ==========================================
+  
+  const RolesModal: React.FC = () => {
+    if (!selectedUserForRoles) return null;
+    
+    const availableDepts = departments.map(d => d.name).filter(d => !accessibleDepts.includes(d) && d !== selectedUserForRoles.department);
+    
+    return (
+      <div className="modal-overlay" onClick={() => setShowRolesModal(false)}>
+        <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3 className="text-lg font-bold">الصلاحيات المتقدمة: {selectedUserForRoles.name}</h3>
+            <button onClick={() => setShowRolesModal(false)} className="icon-btn">
+              <FaTimes />
+            </button>
+          </div>
+          
+          <div className="modal-body space-y-4">
+            {/* صلاحية استثنائية */}
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--hv)' }}>
+              <div>
+                <p className="font-medium">صلاحية لوحة التحكم</p>
+                <p className="text-xs text-gray-500">منح المستخدم صلاحية الوصول إلى لوحة التحكم الإدارية</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={customAdminAccess}
+                  onChange={(e) => setCustomAdminAccess(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-brand peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+              </label>
+            </div>
+            
+            {/* الإدارات الإضافية */}
+            <div>
+              <label className="block text-sm font-medium mb-2">إدارات إضافية للمستخدم</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {accessibleDepts.map(dept => (
+                  <div key={dept} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs" style={{ background: 'var(--hv)' }}>
+                    {dept}
+                    <button onClick={() => handleRemoveAccessibleDept(dept)} className="text-red-500 hover:text-red-600">
+                      <FaTimes size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value=""
+                  onChange={(e) => e.target.value && handleAddAccessibleDept(e.target.value)}
+                  className="input text-sm flex-1"
+                >
+                  <option value="">اختر إدارة...</option>
+                  {availableDepts.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">يمكن للمستخدم الوصول إلى بيانات هذه الإدارات</p>
+            </div>
+            
+            {/* الألقاب الإضافية */}
+            <div>
+              <label className="block text-sm font-medium mb-2">الألقاب والمناصب الإضافية</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {additionalTitles.map(title => (
+                  <div key={title} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs" style={{ background: 'var(--hv)' }}>
+                    {title}
+                    <button onClick={() => handleRemoveTitle(title)} className="text-red-500 hover:text-red-600">
+                      <FaTimes size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTitle()}
+                  className="input text-sm flex-1"
+                  placeholder="أضف لقباً... (مثال: مستشار رئيس مجلس الإدارة)"
+                />
+                <button onClick={handleAddTitle} className="btn-primary px-3">
+                  <FaPlus size={12} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">تظهر الألقاب بجانب اسم المستخدم في النظام</p>
+            </div>
+          </div>
+          
+          <div className="modal-footer">
+            <button onClick={() => setShowRolesModal(false)} className="btn-outline">
+              إلغاء
+            </button>
+            <button onClick={handleSaveRoles} className="btn-primary">
+              حفظ التغييرات
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ==========================================
+  // نافذة إضافة/تعديل مستخدم
+  // ==========================================
+  
+  const UserModal: React.FC = () => {
+    return (
+      <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
+        <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3 className="text-lg font-bold">{editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'}</h3>
+            <button onClick={() => setShowUserModal(false)} className="icon-btn">
+              <FaTimes />
+            </button>
+          </div>
+          
+          <div className="modal-body space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">الاسم الكامل *</label>
+              <input
+                type="text"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                className="input"
+                placeholder="أدخل الاسم الكامل"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">البريد الإلكتروني *</label>
+              <input
+                type="email"
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
+                className="input"
+                placeholder="example@uexperts.sa"
+                disabled={!!editingUser}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">رقم الجوال</label>
+              <input
+                type="tel"
+                value={formPhone}
+                onChange={(e) => setFormPhone(e.target.value)}
+                className="input"
+                placeholder="05xxxxxxxx"
+              />
+            </div>
+            
+            {!editingUser && (
+              <div>
+                <label className="block text-sm font-medium mb-1">كلمة المرور *</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    className="input"
+                    placeholder="6 أحرف على الأقل"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-brand"
+                  >
+                    {showPassword ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">الإدارة *</label>
+              <select
+                value={formDepartment}
+                onChange={(e) => setFormDepartment(e.target.value)}
+                className="input"
+              >
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.name}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium mb-1">الدور الأساسي</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="employee"
+                    checked={formRole === 'employee'}
+                    onChange={() => setFormRole('employee')}
+                    className="accent-brand"
+                  />
+                  <span>موظف</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    value="manager"
+                    checked={formRole === 'manager'}
+                    onChange={() => setFormRole('manager')}
+                    className="accent-brand"
+                  />
+                  <span>مدير</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div className="modal-footer">
+            <button onClick={() => setShowUserModal(false)} className="btn-outline">
+              إلغاء
+            </button>
+            <button onClick={editingUser ? handleEditUser : handleAddUser} className="btn-primary">
+              {editingUser ? 'حفظ التغييرات' : 'إضافة المستخدم'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ==========================================
+  // نافذة تأكيد الحذف
+  // ==========================================
+  
+  const DeleteConfirmModal: React.FC = () => {
+    if (!deletingUserId) return null;
+    const userToDelete = users.find(u => u.uid === deletingUserId);
+    
+    return (
+      <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3 className="text-lg font-bold text-red-500">تأكيد الحذف</h3>
+            <button onClick={() => setShowDeleteConfirm(false)} className="icon-btn">
+              <FaTimes />
+            </button>
+          </div>
+          
+          <div className="modal-body text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-500/10">
+              <FaExclamationTriangle className="text-red-500 text-2xl" />
+            </div>
+            <p className="mb-2">هل أنت متأكد من حذف هذا المستخدم؟</p>
+            <p className="text-sm font-medium">{userToDelete?.name}</p>
+            <p className="text-xs text-gray-500 mt-4">جميع بيانات المستخدم ستختفي نهائياً</p>
+          </div>
+          
+          <div className="modal-footer">
+            <button onClick={() => setShowDeleteConfirm(false)} className="btn-outline">
+              إلغاء
+            </button>
+            <button onClick={handleDeleteUser} className="btn-danger">
+              <FaTrash className="ml-2" /> حذف نهائي
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ==========================================
+  // نافذة تأكيد إعادة تعيين كلمة المرور
+  // ==========================================
+  
+  const ResetPasswordConfirmModal: React.FC = () => {
+    return (
+      <div className="modal-overlay" onClick={() => setShowResetPasswordConfirm(false)}>
+        <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3 className="text-lg font-bold">إعادة تعيين كلمة المرور</h3>
+            <button onClick={() => setShowResetPasswordConfirm(false)} className="icon-btn">
+              <FaTimes />
+            </button>
+          </div>
+          
+          <div className="modal-body text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-brand/10">
+              <FaKey className="text-brand text-2xl" />
+            </div>
+            <p className="mb-2">هل أنت متأكد من إعادة تعيين كلمة المرور؟</p>
+            <p className="text-sm text-gray-500">سيتم إرسال رابط إعادة التعيين إلى</p>
+            <p className="text-sm font-medium mt-1">{resetPasswordEmail}</p>
+          </div>
+          
+          <div className="modal-footer">
+            <button onClick={() => setShowResetPasswordConfirm(false)} className="btn-outline">
+              إلغاء
+            </button>
+            <button onClick={handleResetPassword} className="btn-primary">
+              تأكيد الإرسال
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  // ==========================================
+  // التحقق من الصلاحيات للوصول إلى الصفحة
   // ==========================================
   
   if (!canAccessAdminPanel) {
@@ -500,13 +883,13 @@ export const UsersPage: React.FC = () => {
       <div className="text-center py-12">
         <FaShieldAlt className="text-6xl mx-auto mb-4 text-gray-500" />
         <h2 className="text-xl font-bold mb-2">غير مصرح بالوصول</h2>
-        <p className="text-gray-500">ليس لديك الصلاحية الكافية للوصول إلى هذه الصفحة</p>
+        <p className="text-gray-500">هذه الصفحة متاحة للإدارة العليا والمديرين فقط</p>
       </div>
     );
   }
   
   // ==========================================
-  // الواجهة الرئيسية
+  // الواجهة الرئيسية للصفحة
   // ==========================================
   
   return (
@@ -519,7 +902,7 @@ export const UsersPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">إدارة المستخدمين</h1>
-          <p className="text-gray-500 text-sm mt-1">إدارة حسابات الموظفين والصلاحيات</p>
+          <p className="text-gray-500 text-sm mt-1">إدارة حسابات الموظفين والصلاحيات المتقدمة</p>
         </div>
         <button onClick={openAddModal} className="btn-primary">
           <FaUserPlus className="ml-2" /> إضافة مستخدم جديد
@@ -584,10 +967,7 @@ export const UsersPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => setShowFilters(!showFilters)} 
-            className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}
-          >
+          <button onClick={() => setShowFilters(!showFilters)} className={`icon-btn ${showFilters ? 'bg-brand text-white' : ''}`}>
             <FaFilter size={14} />
           </button>
           <button onClick={exportToCSV} className="icon-btn" title="تصدير">
@@ -620,7 +1000,7 @@ export const UsersPage: React.FC = () => {
               </select>
             </div>
             <div className="flex-1 min-w-[150px]">
-              <label className="block text-xs text-gray-500 mb-1">الدور</label>
+              <label className="block text-xs text-gray-500 mb-1">الدور الأساسي</label>
               <select
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
@@ -679,7 +1059,8 @@ export const UsersPage: React.FC = () => {
                 <th className="text-right p-3">البريد الإلكتروني</th>
                 <th className="text-right p-3">الجوال</th>
                 <th className="text-right p-3">الإدارة</th>
-                <th className="text-right p-3">الدور</th>
+                <th className="text-right p-3">الدور الأساسي</th>
+                <th className="text-right p-3">الألقاب</th>
                 <th className="text-right p-3">الحالة</th>
                 <th className="text-right p-3">تاريخ الانضمام</th>
                 <th className="text-right p-3">الإجراءات</th>
@@ -698,11 +1079,6 @@ export const UsersPage: React.FC = () => {
                           {getInitials(user.name)}
                         </div>
                         <span className="font-medium">{user.name}</span>
-                        {user.additionalTitles.length > 0 && (
-                          <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'var(--hv)' }}>
-                            {user.additionalTitles[0]}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="p-3 text-gray-500">{user.email}</td>
@@ -718,11 +1094,20 @@ export const UsersPage: React.FC = () => {
                          user.primaryRole === 'vp' ? 'نائب رئيس' : 
                          user.primaryRole === 'manager' ? 'مدير' : 'موظف'}
                       </span>
-                      {user.hasCustomAdminAccess && (
-                        <span className="mr-1 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(139,26,26,0.2)', color: 'var(--brand-primary)' }}>
-                          صلاحية استثنائية
-                        </span>
-                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-1">
+                        {user.additionalTitles.slice(0, 2).map((title, idx) => (
+                          <span key={idx} className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'var(--hv)' }}>
+                            {title}
+                          </span>
+                        ))}
+                        {user.additionalTitles.length > 2 && (
+                          <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: 'var(--hv)' }}>
+                            +{user.additionalTitles.length - 2}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-3">
                       {user.isActive ? (
@@ -730,20 +1115,32 @@ export const UsersPage: React.FC = () => {
                       ) : (
                         <span className="badge badge-warning">غير نشط</span>
                       )}
+                      {user.hasCustomAdminAccess && (
+                        <span className="block mt-1 text-[9px] px-1 py-0.5 rounded text-center" style={{ background: 'rgba(139,26,26,0.2)', color: 'var(--brand-primary)' }}>
+                          صلاحية استثنائية
+                        </span>
+                      )}
                     </td>
                     <td className="p-3 text-xs text-gray-500">
                       {format(user.createdAt, 'dd/MM/yyyy', { locale: arSA })}
                     </td>
                     <td className="p-3">
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1">
                         {canEdit && (
                           <>
                             <button
                               onClick={() => openEditModal(user)}
                               className="p-1.5 rounded hover:bg-hv transition-colors"
-                              title="تعديل"
+                              title="تعديل البيانات الأساسية"
                             >
                               <FaEdit size={14} />
+                            </button>
+                            <button
+                              onClick={() => openRolesModal(user)}
+                              className="p-1.5 rounded hover:bg-hv transition-colors"
+                              title="الصلاحيات المتقدمة (الألقاب - الإدارات الإضافية)"
+                            >
+                              <FaUserCog size={14} />
                             </button>
                             <button
                               onClick={() => handleToggleManagerRole(user.uid, user.primaryRole, user.department)}
@@ -751,13 +1148,6 @@ export const UsersPage: React.FC = () => {
                               title={user.primaryRole === 'manager' ? 'إزالة صلاحية المدير' : 'ترقية إلى مدير'}
                             >
                               <FaUserTie size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleToggleCustomAdminAccess(user.uid, user.hasCustomAdminAccess || false)}
-                              className="p-1.5 rounded hover:bg-hv transition-colors"
-                              title={user.hasCustomAdminAccess ? 'إلغاء الصلاحية الاستثنائية' : 'منح صلاحية استثنائية'}
-                            >
-                              <FaUserCog size={14} />
                             </button>
                             <button
                               onClick={() => {
@@ -797,7 +1187,7 @@ export const UsersPage: React.FC = () => {
                                   setShowDeleteConfirm(true);
                                 }}
                                 className="p-1.5 rounded hover:bg-red-500/10 transition-colors text-red-500"
-                                title="حذف"
+                                title="حذف نهائي"
                               >
                                 <FaTrash size={14} />
                               </button>
@@ -822,196 +1212,14 @@ export const UsersPage: React.FC = () => {
       )}
       
       {/* ==========================================
-           نافذة إضافة/تعديل مستخدم
+           النوافذ المنبثقة
       ========================================== */}
       
-      {showUserModal && (
-        <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-bold">{editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'}</h3>
-              <button onClick={() => setShowUserModal(false)} className="icon-btn">
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="modal-body space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">الاسم الكامل *</label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="input"
-                  placeholder="أدخل الاسم الكامل"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">البريد الإلكتروني *</label>
-                <input
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  className="input"
-                  placeholder="example@uexperts.sa"
-                  disabled={!!editingUser}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">رقم الجوال</label>
-                <input
-                  type="tel"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  className="input"
-                  placeholder="05xxxxxxxx"
-                />
-              </div>
-              
-              {!editingUser && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">كلمة المرور *</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formPassword}
-                      onChange={(e) => setFormPassword(e.target.value)}
-                      className="input"
-                      placeholder="6 أحرف على الأقل"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"
-                    >
-                      {showPassword ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">الإدارة *</label>
-                <select
-                  value={formDepartment}
-                  onChange={(e) => setFormDepartment(e.target.value)}
-                  className="input"
-                >
-                  {departments.map(dept => (
-                    <option key={dept.id} value={dept.name}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">الدور</label>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      value="employee"
-                      checked={formRole === 'employee'}
-                      onChange={() => setFormRole('employee')}
-                      className="accent-brand"
-                    />
-                    <span>موظف</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      value="manager"
-                      checked={formRole === 'manager'}
-                      onChange={() => setFormRole('manager')}
-                      className="accent-brand"
-                    />
-                    <span>مدير</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            <div className="modal-footer">
-              <button onClick={() => setShowUserModal(false)} className="btn-outline">
-                إلغاء
-              </button>
-              <button onClick={editingUser ? handleEditUser : handleAddUser} className="btn-primary">
-                {editingUser ? 'حفظ التغييرات' : 'إضافة المستخدم'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showUserModal && <UserModal />}
+      {showRolesModal && <RolesModal />}
+      {showDeleteConfirm && <DeleteConfirmModal />}
+      {showResetPasswordConfirm && <ResetPasswordConfirmModal />}
       
-      {/* ==========================================
-           نافذة تأكيد الحذف
-      ========================================== */}
-      
-      {showDeleteConfirm && (
-        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-bold text-red-500">تأكيد الحذف</h3>
-              <button onClick={() => setShowDeleteConfirm(false)} className="icon-btn">
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="modal-body text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-500/10">
-                <FaExclamationTriangle className="text-red-500 text-2xl" />
-              </div>
-              <p className="mb-2">هل أنت متأكد من حذف هذا المستخدم؟</p>
-              <p className="text-sm text-gray-500 mt-4">لا يمكن التراجع عن هذا الإجراء</p>
-            </div>
-            
-            <div className="modal-footer">
-              <button onClick={() => setShowDeleteConfirm(false)} className="btn-outline">
-                إلغاء
-              </button>
-              <button onClick={handleDeleteUser} className="btn-danger">
-                حذف نهائي
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* ==========================================
-           نافذة تأكيد إعادة تعيين كلمة المرور
-      ========================================== */}
-      
-      {showResetPasswordConfirm && (
-        <div className="modal-overlay" onClick={() => setShowResetPasswordConfirm(false)}>
-          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-bold">إعادة تعيين كلمة المرور</h3>
-              <button onClick={() => setShowResetPasswordConfirm(false)} className="icon-btn">
-                <FaTimes />
-              </button>
-            </div>
-            
-            <div className="modal-body text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-brand/10">
-                <FaKey className="text-brand text-2xl" />
-              </div>
-              <p className="mb-2">هل أنت متأكد من إعادة تعيين كلمة المرور؟</p>
-              <p className="text-sm text-gray-500">سيتم إرسال رابط إعادة التعيين إلى</p>
-              <p className="text-sm font-medium mt-1">{resetPasswordEmail}</p>
-            </div>
-            
-            <div className="modal-footer">
-              <button onClick={() => setShowResetPasswordConfirm(false)} className="btn-outline">
-                إلغاء
-              </button>
-              <button onClick={handleResetPassword} className="btn-primary">
-                تأكيد الإرسال
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

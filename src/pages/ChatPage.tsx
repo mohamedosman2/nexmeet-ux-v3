@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth, usePermissions } from '../contexts/AuthContext';
-import { db, storage, uploadFile } from '../config/firebase';
+import { db, storage, uploadFile, deleteFile } from '../config/firebase';
 import { 
   collection, 
   query, 
@@ -128,6 +128,20 @@ const EMOJIS = [
 ];
 
 // ==========================================
+// إعدادات WebRTC للمكالمات الصوتية والفيديو
+// ==========================================
+
+const configuration: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+  ]
+};
+
+// ==========================================
 // صفحة المحادثات الرئيسية
 // ==========================================
 
@@ -135,7 +149,10 @@ export const ChatPage: React.FC = () => {
   const { currentUser, userProfile } = useAuth();
   const { isTopManagement, isManager } = usePermissions();
   
+  // ==========================================
   // حالات البيانات
+  // ==========================================
+  
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -143,32 +160,53 @@ export const ChatPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sendingMessage, setSendingMessage] = useState(false);
   
+  // ==========================================
   // حالات الإدخال
+  // ==========================================
+  
   const [inputText, setInputText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   
+  // ==========================================
   // حالات المرفقات
+  // ==========================================
+  
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<{ name: string; progress: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // ==========================================
   // حالات المنشن
+  // ==========================================
+  
   const [mentionQuery, setMentionQuery] = useState('');
   const [showMentionDropdown, setShowMentionDropdown] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   
-  // حالات الصوت
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // ==========================================
+  // حالات الصوت والفيديو (WebRTC)
+  // ==========================================
   
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [isVideoCall, setIsVideoCall] = useState(false);
+  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
+  const [callPeerId, setCallPeerId] = useState<string | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{ from: string; offer: RTCSessionDescriptionInit } | null>(null);
+  
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const callTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // ==========================================
   // حالات البحث
+  // ==========================================
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   
@@ -476,11 +514,11 @@ export const ChatPage: React.FC = () => {
       recorder.onstop = () => {
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
-        setAudioUrl(url);
         
         // رفع الملف الصوتي
         const audioFile = new File([audioBlob], `voice_${Date.now()}.webm`, { type: 'audio/webm' });
-        handleFileUpload({ 0: audioFile, length: 1 } as any);
+        const fakeEvent = { target: { files: [audioFile] } } as any;
+        handleFileUpload(fakeEvent.target.files);
         
         stream.getTracks().forEach(track => track.stop());
       };
@@ -501,6 +539,244 @@ export const ChatPage: React.FC = () => {
       setIsRecording(false);
     }
   };
+  
+  // ==========================================
+  // دوال المكالمات الصوتية والفيديو (WebRTC)
+  // ==========================================
+  
+  // بدء مكالمة صوتية
+  const startAudioCall = async (peerId: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      setLocalStream(stream);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      const pc = new RTCPeerConnection(configuration);
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      pc.ontrack = (event) => {
+        setRemoteStream(event.streams[0]);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+      
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          // إرسال المرشح إلى الطرف الآخر (يمكن تخزينه في Firestore)
+          console.log('ICE candidate:', event.candidate);
+        }
+      };
+      
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      // إرسال العرض إلى الطرف الآخر عبر Firestore
+      const callRef = doc(db, 'calls', `${currentUser?.uid}_${peerId}`);
+      await setDoc(callRef, {
+        from: currentUser?.uid,
+        to: peerId,
+        offer: offer,
+        type: 'audio',
+        status: 'calling',
+        createdAt: Date.now()
+      });
+      
+      setPeerConnection(pc);
+      setIsCallActive(true);
+      setIsVideoCall(false);
+      setCallPeerId(peerId);
+      setCallStatus('calling');
+      
+      // تعيين مهلة للمكالمة
+      callTimeoutRef.current = setTimeout(() => {
+        if (callStatus === 'calling') {
+          endCall();
+          toast.error('لم يتم الرد على المكالمة');
+        }
+      }, 30000);
+      
+    } catch (error) {
+      console.error('Error starting call:', error);
+      toast.error('لا يمكن بدء المكالمة');
+    }
+  };
+  
+  // بدء مكالمة فيديو
+  const startVideoCall = async (peerId: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+      setLocalStream(stream);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      const pc = new RTCPeerConnection(configuration);
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      pc.ontrack = (event) => {
+        setRemoteStream(event.streams[0]);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+      
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log('ICE candidate:', event.candidate);
+        }
+      };
+      
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      const callRef = doc(db, 'calls', `${currentUser?.uid}_${peerId}`);
+      await setDoc(callRef, {
+        from: currentUser?.uid,
+        to: peerId,
+        offer: offer,
+        type: 'video',
+        status: 'calling',
+        createdAt: Date.now()
+      });
+      
+      setPeerConnection(pc);
+      setIsCallActive(true);
+      setIsVideoCall(true);
+      setCallPeerId(peerId);
+      setCallStatus('calling');
+      
+      callTimeoutRef.current = setTimeout(() => {
+        if (callStatus === 'calling') {
+          endCall();
+          toast.error('لم يتم الرد على المكالمة');
+        }
+      }, 30000);
+      
+    } catch (error) {
+      console.error('Error starting video call:', error);
+      toast.error('لا يمكن بدء مكالمة الفيديو');
+    }
+  };
+  
+  // الرد على مكالمة واردة
+  const acceptCall = async () => {
+    if (!incomingCall) return;
+    
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: true, 
+        video: incomingCall.offer.type === 'video' 
+      });
+      setLocalStream(stream);
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+      
+      const pc = new RTCPeerConnection(configuration);
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+      pc.ontrack = (event) => {
+        setRemoteStream(event.streams[0]);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      };
+      
+      await pc.setRemoteDescription(incomingCall.offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      // إرسال الرد إلى الطالب
+      const callRef = doc(db, 'calls', `${currentUser?.uid}_${incomingCall.from}`);
+      await updateDoc(callRef, {
+        answer: answer,
+        status: 'connected',
+        answeredAt: Date.now()
+      });
+      
+      setPeerConnection(pc);
+      setIsCallActive(true);
+      setIsVideoCall(incomingCall.offer.type === 'video');
+      setCallPeerId(incomingCall.from);
+      setCallStatus('connected');
+      setIncomingCall(null);
+      
+      if (callTimeoutRef.current) clearTimeout(callTimeoutRef.current);
+      
+    } catch (error) {
+      console.error('Error accepting call:', error);
+      toast.error('حدث خطأ في قبول المكالمة');
+    }
+  };
+  
+  // رفض المكالمة
+  const rejectCall = () => {
+    if (incomingCall) {
+      const callRef = doc(db, 'calls', `${currentUser?.uid}_${incomingCall.from}`);
+      updateDoc(callRef, { status: 'rejected' }).catch(console.error);
+      setIncomingCall(null);
+      toast.info('تم رفض المكالمة');
+    }
+  };
+  
+  // إنهاء المكالمة
+  const endCall = () => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    
+    if (peerConnection) {
+      peerConnection.close();
+      setPeerConnection(null);
+    }
+    
+    if (callTimeoutRef.current) {
+      clearTimeout(callTimeoutRef.current);
+    }
+    
+    setIsCallActive(false);
+    setIsVideoCall(false);
+    setRemoteStream(null);
+    setCallPeerId(null);
+    setCallStatus('ended');
+    
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null;
+    }
+  };
+  
+  // الاستماع للمكالمات الواردة
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const callsQuery = query(
+      collection(db, 'calls'),
+      where('to', '==', currentUser.uid),
+      where('status', '==', 'calling')
+    );
+    
+    const unsubscribe = onSnapshot(callsQuery, (snapshot) => {
+      snapshot.forEach((doc) => {
+        const callData = doc.data();
+        if (callData.offer && !incomingCall) {
+          setIncomingCall({
+            from: callData.from,
+            offer: callData.offer
+          });
+          toast.info(`مكالمة ${callData.type === 'video' ? 'فيديو' : 'صوتية'} واردة من ${getUserName(callData.from)}`);
+        }
+      });
+    });
+    
+    return () => unsubscribe();
+  }, [currentUser, incomingCall]);
   
   // ==========================================
   // معالجة المنشنات أثناء الكتابة
@@ -593,14 +869,10 @@ export const ChatPage: React.FC = () => {
     
     return (
       <div className="w-80 flex-shrink-0 border-l" style={{ borderColor: 'var(--bd)' }}>
-        {/* رأس القائمة */}
         <div className="p-4 border-b" style={{ borderColor: 'var(--bd)' }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-bold">المحادثات</h2>
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className="icon-btn"
-            >
+            <button onClick={() => setShowSearch(!showSearch)} className="icon-btn">
               <FaSearch size={14} />
             </button>
           </div>
@@ -616,7 +888,6 @@ export const ChatPage: React.FC = () => {
           )}
         </div>
         
-        {/* قائمة المجموعات */}
         <div className="overflow-y-auto h-[calc(100vh-200px)]">
           {filteredGroups.map(group => {
             const isActive = activeGroupId === group.id;
@@ -632,7 +903,6 @@ export const ChatPage: React.FC = () => {
                 className={`p-3 flex items-center gap-3 cursor-pointer transition-all hover:bg-hv ${isActive ? 'bg-hv border-r-3 border-brand' : ''}`}
                 style={{ borderRightColor: isActive ? 'var(--brand-primary)' : 'transparent' }}
               >
-                {/* الصورة الرمزية */}
                 <div className="relative">
                   <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0" style={{ background: group.type === 'private' ? 'var(--brand-primary)' : 'var(--brand-secondary)' }}>
                     {group.type === 'company' ? <FaBuilding /> : group.type === 'department' ? <FaUsers /> : getUserInitials(group.name)}
@@ -642,7 +912,6 @@ export const ChatPage: React.FC = () => {
                   )}
                 </div>
                 
-                {/* معلومات المجموعة */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-sm truncate">{group.name}</span>
@@ -682,6 +951,8 @@ export const ChatPage: React.FC = () => {
     }
     
     const activeGroup = groups.find(g => g.id === activeGroupId);
+    const isPrivate = activeGroup?.type === 'private';
+    const peerId = isPrivate ? activeGroup?.membersUids.find(uid => uid !== currentUser?.uid) : null;
     
     return (
       <div className="flex-1 flex flex-col">
@@ -700,14 +971,125 @@ export const ChatPage: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            <button className="icon-btn">
-              <FaPhone size={14} />
-            </button>
-            <button className="icon-btn">
-              <FaVideo size={14} />
-            </button>
+            {/* زر المكالمة الصوتية */}
+            {isPrivate && peerId && !isCallActive && (
+              <button
+                onClick={() => startAudioCall(peerId)}
+                className="icon-btn"
+                title="مكالمة صوتية"
+              >
+                <FaPhone size={14} />
+              </button>
+            )}
+            {/* زر مكالمة الفيديو */}
+            {isPrivate && peerId && !isCallActive && (
+              <button
+                onClick={() => startVideoCall(peerId)}
+                className="icon-btn"
+                title="مكالمة فيديو"
+              >
+                <FaVideo size={14} />
+              </button>
+            )}
           </div>
         </div>
+        
+        {/* نافذة المكالمة النشطة */}
+        {isCallActive && (
+          <div className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center">
+            <div className="relative w-full max-w-4xl aspect-video">
+              {/* الفيديو البعيد */}
+              <video
+                ref={remoteVideoRef}
+                autoPlay
+                playsInline
+                className="w-full h-full object-cover rounded-lg"
+              />
+              {/* الفيديو المحلي (صغير) */}
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="absolute bottom-4 right-4 w-32 h-24 object-cover rounded-lg border-2 border-white shadow-lg"
+              />
+              
+              {/* أزرار التحكم */}
+              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
+                <button
+                  onClick={endCall}
+                  className="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-colors"
+                >
+                  <FaPhone size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (localStream) {
+                      const audioTrack = localStream.getAudioTracks()[0];
+                      if (audioTrack) {
+                        audioTrack.enabled = !audioTrack.enabled;
+                      }
+                    }
+                  }}
+                  className="w-12 h-12 rounded-full bg-gray-700 text-white flex items-center justify-center hover:bg-gray-600 transition-colors"
+                >
+                  <FaMicrophone size={20} />
+                </button>
+                {isVideoCall && (
+                  <button
+                    onClick={() => {
+                      if (localStream) {
+                        const videoTrack = localStream.getVideoTracks()[0];
+                        if (videoTrack) {
+                          videoTrack.enabled = !videoTrack.enabled;
+                        }
+                      }
+                    }}
+                    className="w-12 h-12 rounded-full bg-gray-700 text-white flex items-center justify-center hover:bg-gray-600 transition-colors"
+                  >
+                    <FaVideo size={20} />
+                  </button>
+                )}
+              </div>
+              
+              {/* حالة المكالمة */}
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/50 px-4 py-2 rounded-full text-white text-sm">
+                {callStatus === 'calling' && 'جارٍ الاتصال...'}
+                {callStatus === 'ringing' && 'يرن...'}
+                {callStatus === 'connected' && 'متصل'}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* نافذة المكالمة الواردة */}
+        {incomingCall && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+            <div className="bg-bg3 rounded-2xl p-6 text-center max-w-sm w-full mx-4">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-brand/20 flex items-center justify-center">
+                <FaPhone className="text-brand text-3xl animate-pulse" />
+              </div>
+              <h3 className="text-xl font-bold mb-2">مكالمة واردة</h3>
+              <p className="text-gray-400 mb-6">
+                {getUserName(incomingCall.from)} يطلب مكالمة {incomingCall.offer.type === 'video' ? 'فيديو' : 'صوتية'}
+              </p>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={acceptCall}
+                  className="px-6 py-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                >
+                  قبول
+                </button>
+                <button
+                  onClick={rejectCall}
+                  className="px-6 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors"
+                >
+                  رفض
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* منطقة الرسائل */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ background: 'var(--chat)' }}>
@@ -742,14 +1124,12 @@ export const ChatPage: React.FC = () => {
                     {/* فقاعة الرسالة */}
                     <div className="group relative">
                       <div className={`chat-bubble ${isMine ? 'mine' : 'other'}`}>
-                        {/* اسم المرسل (للمجموعات) */}
                         {!isMine && activeGroup?.type !== 'private' && (
                           <div className="text-[10px] font-bold mb-1 text-brand-light">
                             {sender?.name}
                           </div>
                         )}
                         
-                        {/* الرد على رسالة */}
                         {message.replyToId && (
                           <div className="text-[10px] p-2 mb-2 rounded opacity-70" style={{ background: 'rgba(0,0,0,0.1)' }}>
                             <span className="font-medium">رد على:</span> {
@@ -758,14 +1138,12 @@ export const ChatPage: React.FC = () => {
                           </div>
                         )}
                         
-                        {/* محتوى الرسالة */}
                         {isDeleted ? (
                           <em className="text-xs opacity-60">تم حذف هذه الرسالة</em>
                         ) : (
                           <>
                             <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
                             
-                            {/* المرفقات */}
                             {message.attachments && message.attachments.length > 0 && (
                               <div className="mt-2 space-y-1">
                                 {message.attachments.map((att, idx) => (
@@ -787,7 +1165,6 @@ export const ChatPage: React.FC = () => {
                           </>
                         )}
                         
-                        {/* التفاعلات (Reactions) */}
                         {reactions.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             {reactions.map((reaction, idx) => (
@@ -802,7 +1179,6 @@ export const ChatPage: React.FC = () => {
                           </div>
                         )}
                         
-                        {/* الوقت وحالة القراءة */}
                         <div className={`text-[9px] mt-1 flex items-center gap-1 ${isMine ? 'text-white/60 justify-end' : 'text-gray-500'}`}>
                           <span>{formatTime(message.timestamp)}</span>
                           {message.isEdited && <span>(معدلة)</span>}
@@ -814,7 +1190,6 @@ export const ChatPage: React.FC = () => {
                         </div>
                       </div>
                       
-                      {/* أزرار الإجراءات */}
                       {!isDeleted && isMine && (
                         <div className="absolute top-0 left-0 -translate-x-full opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 mr-2">
                           <button
@@ -834,58 +1209,6 @@ export const ChatPage: React.FC = () => {
                           </button>
                         </div>
                       )}
-                      
-                      {/* زر إضافة تفاعل */}
-                      {!isDeleted && (
-                        <div className={`absolute ${isMine ? 'right-full mr-2' : 'left-full ml-2'} top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity`}>
-                          <div className="relative">
-                            <button
-                              onClick={() => {
-                                const picker = document.createElement('div');
-                                picker.className = 'absolute bottom-full mb-2 p-2 rounded-lg shadow-xl z-50';
-                                picker.style.background = 'var(--bg3)';
-                                picker.style.border = '1px solid var(--bd)';
-                                picker.style.width = '280px';
-                                picker.style.maxHeight = '200px';
-                                picker.style.overflowY = 'auto';
-                                picker.style.display = 'grid';
-                                picker.style.gridTemplateColumns = 'repeat(8, 1fr)';
-                                picker.style.gap = '4px';
-                                
-                                EMOJIS.forEach(emoji => {
-                                  const btn = document.createElement('button');
-                                  btn.textContent = emoji;
-                                  btn.className = 'p-1 rounded hover:bg-hv transition-colors';
-                                  btn.onclick = () => {
-                                    handleAddReaction(message.id, emoji);
-                                    picker.remove();
-                                  };
-                                  picker.appendChild(btn);
-                                });
-                                
-                                document.body.appendChild(picker);
-                                const rect = (document.activeElement as HTMLElement)?.getBoundingClientRect();
-                                if (rect) {
-                                  picker.style.left = `${rect.left}px`;
-                                  picker.style.bottom = `${window.innerHeight - rect.top + 10}px`;
-                                }
-                                
-                                setTimeout(() => {
-                                  document.addEventListener('click', function onClickOutside(e) {
-                                    if (!picker.contains(e.target as Node)) {
-                                      picker.remove();
-                                      document.removeEventListener('click', onClickOutside);
-                                    }
-                                  });
-                                }, 0);
-                              }}
-                              className="w-6 h-6 rounded-full flex items-center justify-center text-xs bg-bg3 border border-bd hover:text-brand"
-                            >
-                              😊
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -897,7 +1220,6 @@ export const ChatPage: React.FC = () => {
         
         {/* منطقة كتابة الرسالة */}
         <div className="p-3 border-t" style={{ borderColor: 'var(--bd)' }}>
-          {/* رسالة الرد */}
           {replyToMessage && (
             <div className="flex items-center justify-between p-2 mb-2 rounded-lg" style={{ background: 'var(--hv)' }}>
               <div className="flex-1">
@@ -910,7 +1232,6 @@ export const ChatPage: React.FC = () => {
             </div>
           )}
           
-          {/* المرفقات المعلقة */}
           {(attachments.length > 0 || uploadingFiles.length > 0) && (
             <div className="flex flex-wrap gap-2 mb-2">
               {attachments.map((att, idx) => (
@@ -932,32 +1253,16 @@ export const ChatPage: React.FC = () => {
             </div>
           )}
           
-          {/* حقل الإدخال والأزرار */}
           <div className="flex items-center gap-2">
-            {/* زر المرفقات */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="icon-btn"
-            >
+            <button onClick={() => fileInputRef.current?.click()} className="icon-btn">
               <FaPaperclip size={16} />
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files)}
-            />
+            <input ref={fileInputRef} type="file" multiple className="hidden" onChange={(e) => handleFileUpload(e.target.files)} />
             
-            {/* زر التسجيل الصوتي */}
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              className={`icon-btn ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : ''}`}
-            >
+            <button onClick={isRecording ? stopRecording : startRecording} className={`icon-btn ${isRecording ? 'bg-red-500/20 text-red-500 animate-pulse' : ''}`}>
               {isRecording ? <FaStop size={14} /> : <FaMicrophone size={14} />}
             </button>
             
-            {/* حقل النص */}
             <div className="relative flex-1">
               <input
                 ref={inputRef}
@@ -970,15 +1275,10 @@ export const ChatPage: React.FC = () => {
                 disabled={sendingMessage}
               />
               
-              {/* زر الإيموجي */}
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-brand transition-colors"
-              >
+              <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-brand transition-colors">
                 <FaRegSmile size={18} />
               </button>
               
-              {/* منشن دروبداون */}
               {showMentionDropdown && (
                 <div className="absolute bottom-full left-0 mb-1 w-64 rounded-lg shadow-xl overflow-hidden z-10" style={{ background: 'var(--bg3)', border: '1px solid var(--bd)' }}>
                   {users
@@ -1002,7 +1302,6 @@ export const ChatPage: React.FC = () => {
                 </div>
               )}
               
-              {/* إيموجي بيكر */}
               {showEmojiPicker && (
                 <div className="absolute bottom-full left-0 mb-1 p-2 rounded-lg shadow-xl z-10" style={{ background: 'var(--bg3)', border: '1px solid var(--bd)', width: '280px', maxHeight: '200px', overflowY: 'auto' }}>
                   <div className="grid grid-cols-8 gap-1">
@@ -1024,36 +1323,20 @@ export const ChatPage: React.FC = () => {
               )}
             </div>
             
-            {/* زر الإرسال */}
-            <button
-              onClick={handleSendMessage}
-              disabled={(!inputText.trim() && attachments.length === 0) || sendingMessage}
-              className="btn-primary px-4"
-            >
+            <button onClick={handleSendMessage} disabled={(!inputText.trim() && attachments.length === 0) || sendingMessage} className="btn-primary px-4">
               {sendingMessage ? <FaSpinner className="animate-spin" /> : <FaPaperPlane />}
             </button>
           </div>
         </div>
         
-        {/* نافذة تعديل الرسالة */}
         {editingMessageId && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingMessageId(null)}>
             <div className="rounded-lg p-4 w-96" style={{ background: 'var(--bg3)', border: '1px solid var(--bd)' }} onClick={(e) => e.stopPropagation()}>
               <h3 className="font-bold mb-3">تعديل الرسالة</h3>
-              <textarea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                className="textarea mb-3"
-                rows={3}
-                autoFocus
-              />
+              <textarea value={editText} onChange={(e) => setEditText(e.target.value)} className="textarea mb-3" rows={3} autoFocus />
               <div className="flex justify-end gap-2">
-                <button onClick={() => setEditingMessageId(null)} className="btn-outline text-sm">
-                  إلغاء
-                </button>
-                <button onClick={() => handleEditMessage(editingMessageId)} className="btn-primary text-sm">
-                  حفظ التعديل
-                </button>
+                <button onClick={() => setEditingMessageId(null)} className="btn-outline text-sm">إلغاء</button>
+                <button onClick={() => handleEditMessage(editingMessageId)} className="btn-primary text-sm">حفظ التعديل</button>
               </div>
             </div>
           </div>
@@ -1061,10 +1344,6 @@ export const ChatPage: React.FC = () => {
       </div>
     );
   };
-  
-  // ==========================================
-  // الواجهة الرئيسية
-  // ==========================================
   
   return (
     <div className="flex h-[calc(100vh-120px)] rounded-xl overflow-hidden border" style={{ borderColor: 'var(--bd)' }}>

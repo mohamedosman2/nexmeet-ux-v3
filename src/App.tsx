@@ -1,7 +1,5 @@
-// src/App.tsx
-
-import React, { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -21,16 +19,18 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard').then(module =
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage').then(module => ({ default: module.DepartmentsPage })));
 const UsersPage = lazy(() => import('./pages/UsersPage').then(module => ({ default: module.UsersPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(module => ({ default: module.ReportsPage })));
+const HelpPage = lazy(() => import('./pages/HelpPage').then(module => ({ default: module.HelpPage })));
+const SuggestionsPage = lazy(() => import('./pages/SuggestionsPage').then(module => ({ default: module.SuggestionsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })));
 
 // ==========================================
-// شاشة التحميل
+// شاشة التحميل (Loading Screen)
 // ==========================================
 
 const LoadingScreen: React.FC = () => {
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--bg)' }}>
       <div className="text-center">
-        {/* Spinner متحرك */}
         <div className="relative w-16 h-16 mx-auto mb-4">
           <div className="absolute inset-0 rounded-full border-4 border-brand/20"></div>
           <div className="absolute inset-0 rounded-full border-4 border-brand border-t-transparent animate-spin"></div>
@@ -49,7 +49,6 @@ const LoadingScreen: React.FC = () => {
 
 const PendingApprovalScreen: React.FC = () => {
   const { logout, userProfile } = useAuth();
-  const navigate = useNavigate();
   
   return (
     <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--lg)' }}>
@@ -58,7 +57,7 @@ const PendingApprovalScreen: React.FC = () => {
       <div className="floating-shape" style={{ width: '200px', height: '200px', background: '#1E3A6E', bottom: '15%', left: '15%' }}></div>
       <div className="floating-shape" style={{ width: '250px', height: '250px', background: '#A52A2A', top: '40%', left: '40%', opacity: '0.05' }}></div>
       
-      <div className="text-center animate-fadeIn max-w-md mx-4">
+      <div className="text-center max-w-md mx-4 animate-fadeIn">
         {/* أيقونة الساعة */}
         <div className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center" style={{ background: 'rgba(139, 26, 26, 0.15)' }}>
           <svg className="w-12 h-12 text-brand-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,6 +68,7 @@ const PendingApprovalScreen: React.FC = () => {
         {/* النص الترحيبي */}
         <h2 className="text-2xl font-bold mb-3 text-white">مرحباً بك في شركة UX</h2>
         <p className="text-gray-400 mb-2">طلب انضمامك قيد المراجعة من قبل الإدارة</p>
+        
         <div className="bg-brand/10 rounded-lg p-4 mb-6 border border-brand/20">
           <p className="text-sm text-gray-300">
             سيتم مراجعة طلبك من <span className="text-brand-light font-semibold">مدير الإدارة</span> ثم 
@@ -88,7 +88,7 @@ const PendingApprovalScreen: React.FC = () => {
         
         {/* زر تسجيل الخروج */}
         <button 
-          onClick={() => { logout(); navigate('/login'); }}
+          onClick={logout}
           className="px-6 py-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-brand/20 border border-brand/30 text-brand-light hover:text-white"
         >
           تسجيل الخروج
@@ -99,7 +99,7 @@ const PendingApprovalScreen: React.FC = () => {
 };
 
 // ==========================================
-// شاشة عدم وجود صلاحيات (403 Forbidden)
+// شاشة "غير مصرح بالدخول" (403 Forbidden)
 // ==========================================
 
 const ForbiddenScreen: React.FC = () => {
@@ -127,7 +127,7 @@ const ForbiddenScreen: React.FC = () => {
 };
 
 // ==========================================
-// شاشة الصيانة (لحالات الطوارئ)
+// شاشة الصيانة (Maintenance Mode)
 // ==========================================
 
 const MaintenanceScreen: React.FC = () => {
@@ -198,7 +198,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 };
 
 // ==========================================
-// المكون الرئيسي للتطبيق
+// المكون الرئيسي للتطبيق (App)
 // ==========================================
 
 export const App: React.FC = () => {
@@ -215,16 +215,16 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [currentUser, refreshUserProfile]);
 
-  // إذا كان النظام في وضع الصيانة (يمكن تفعيله من متغيرات البيئة)
-  const isMaintenance = false;
-
+  // التحقق من وضع الصيانة (يمكن تفعيله من متغيرات البيئة)
+  const isMaintenance = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
+  
   if (isMaintenance) {
     return <MaintenanceScreen />;
   }
 
   return (
     <Router>
-      {/* إشعارات toast */}
+      {/* إعدادات الإشعارات المنبثقة (Toast) */}
       <Toaster 
         position="top-center"
         toastOptions={{
@@ -251,22 +251,23 @@ export const App: React.FC = () => {
         }}
       />
       
+      {/* تأخير تحميل الصفحات حتى يتم تجهيزها */}
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          {/* صفحة المصادقة (تسجيل الدخول والتسجيل) */}
+          
+          {/* ==========================================
+               صفحة المصادقة (تسجيل الدخول والتسجيل)
+          ========================================== */}
+          
           <Route 
             path="/login" 
-            element={
-              currentUser && !loading ? 
-                <Navigate to="/dashboard" replace /> : 
-                <AuthPage />
-            } 
+            element={currentUser && !loading ? <Navigate to="/dashboard" replace /> : <AuthPage />} 
           />
           
-          {/* صفحة معالجة الرابط السحري */}
-          <Route path="/login/magic-link" element={<LoadingScreen />} />
+          {/* ==========================================
+               المسارات المحمية (Protected Routes)
+          ========================================== */}
           
-          {/* المسارات المحمية */}
           <Route 
             path="/" 
             element={
@@ -275,19 +276,50 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           >
-            {/* التوجيه الافتراضي */}
+            {/* التوجيه الافتراضي - الذهاب إلى لوحة التحكم */}
             <Route index element={<Navigate to="/dashboard" replace />} />
             
-            {/* الصفحات الأساسية */}
+            {/* ==========================================
+                 الصفحات الأساسية لجميع المستخدمين
+            ========================================== */}
+            
+            {/* صفحة التقويم / لوحة التحكم الرئيسية */}
             <Route path="dashboard" element={<CalendarPage />} />
             <Route path="calendar" element={<Navigate to="/dashboard" replace />} />
+            
+            {/* صفحة المهام */}
             <Route path="tasks" element={<TasksPage />} />
+            
+            {/* صفحة الاجتماعات */}
             <Route path="meetings" element={<MeetingsPage />} />
+            
+            {/* صفحة المحادثات */}
             <Route path="chat" element={<ChatPage />} />
+            
+            {/* صفحة الإشعارات */}
             <Route path="notifications" element={<NotificationsPage />} />
+            
+            {/* صفحة الملف الشخصي */}
             <Route path="profile" element={<ProfilePage />} />
             
-            {/* صفحات الإدارة (للمديرين والإدارة العليا فقط) */}
+            {/* ==========================================
+                 صفحات المساعدة والدعم الفني
+            ========================================== */}
+            
+            {/* صفحة مركز المساعدة */}
+            <Route path="help" element={<HelpPage />} />
+            
+            {/* صفحة الاقتراحات والشكاوى */}
+            <Route path="suggestions" element={<SuggestionsPage />} />
+            
+            {/* صفحة الإعدادات */}
+            <Route path="settings" element={<SettingsPage />} />
+            
+            {/* ==========================================
+                 صفحات الإدارة (للمديرين والإدارة العليا فقط)
+            ========================================== */}
+            
+            {/* لوحة التحكم الإدارية */}
             <Route 
               path="admin" 
               element={
@@ -326,13 +358,17 @@ export const App: React.FC = () => {
                 </ProtectedRoute>
               } 
             />
+            
           </Route>
           
-          {/* صفحة 404 - غير موجود */}
+          {/* ==========================================
+               صفحة 404 - الصفحة غير موجودة
+          ========================================== */}
+          
           <Route 
             path="*" 
             element={
-              <div className="fixed inset-0 flex items-center justify-center" style={{ background: 'var(--bg)' }}>
+              <div className="fixed inset-0 flex items-center justifyContent" style={{ background: 'var(--bg)' }}>
                 <div className="text-center animate-fadeIn">
                   <div className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center bg-brand/10">
                     <span className="text-4xl font-bold text-brand">404</span>
@@ -349,6 +385,7 @@ export const App: React.FC = () => {
               </div>
             } 
           />
+          
         </Routes>
       </Suspense>
     </Router>
