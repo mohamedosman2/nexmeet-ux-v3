@@ -1,5 +1,3 @@
-// src/services/seedUsers.ts
-
 import { db, auth } from '../config/firebase';
 import { 
   collection, 
@@ -271,11 +269,10 @@ const SEED_USERS: SeedUser[] = [
  */
 const userExistsInAuth = async (email: string): Promise<boolean> => {
   try {
-    // محاولة البحث عن المستخدم في Firestore
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', email));
-    const snapshot = await getDocs(q);
-    return !snapshot.empty;
+    const usersQuery = query(usersRef, where('email', '==', email));
+    const querySnapshot = await getDocs(usersQuery);
+    return !querySnapshot.empty;
   } catch (error) {
     console.error('Error checking user existence:', error);
     return false;
@@ -288,19 +285,19 @@ const userExistsInAuth = async (email: string): Promise<boolean> => {
 const createAuthUser = async (email: string, password: string, name: string): Promise<string | null> => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    console.log(`✅ تم إنشاء المستخدم في Auth: ${email}`);
     return userCredential.user.uid;
   } catch (error: any) {
     if (error.code === 'auth/email-already-in-use') {
-      console.log(`User ${email} already exists in Auth`);
-      // البحث عن UID المستخدم
+      console.log(`⚠️ المستخدم ${email} موجود بالفعل في Auth`);
       const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        return snapshot.docs[0].id;
+      const usersQuery = query(usersRef, where('email', '==', email));
+      const querySnapshot = await getDocs(usersQuery);
+      if (!querySnapshot.empty) {
+        return querySnapshot.docs[0].id;
       }
     }
-    console.error(`Error creating user ${email}:`, error);
+    console.error(`❌ فشل إنشاء المستخدم ${email}:`, error);
     return null;
   }
 };
@@ -325,9 +322,10 @@ const createFirestoreUser = async (user: SeedUser, uid: string): Promise<boolean
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+    console.log(`✅ تم إنشاء المستخدم في Firestore: ${user.email}`);
     return true;
   } catch (error) {
-    console.error(`Error creating Firestore user ${user.email}:`, error);
+    console.error(`❌ فشل إنشاء المستخدم في Firestore ${user.email}:`, error);
     return false;
   }
 };
@@ -335,7 +333,9 @@ const createFirestoreUser = async (user: SeedUser, uid: string): Promise<boolean
 /**
  * تهيئة الإدارات الافتراضية
  */
-const seedDepartments = async () => {
+const seedDepartments = async (): Promise<void> => {
+  console.log('🚀 بدء تهيئة الإدارات...');
+  
   const departments = [
     { name: 'التسويق', managerUid: null },
     { name: 'المالية والتدقيق', managerUid: null },
@@ -347,7 +347,8 @@ const seedDepartments = async () => {
   
   const batch = writeBatch(db);
   
-  for (const dept of departments) {
+  for (let i = 0; i < departments.length; i++) {
+    const dept = departments[i];
     const deptRef = doc(db, 'departments', dept.name);
     const deptDoc = await getDoc(deptRef);
     if (!deptDoc.exists()) {
@@ -357,17 +358,22 @@ const seedDepartments = async () => {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
+      console.log(`✅ تم إنشاء الإدارة: ${dept.name}`);
+    } else {
+      console.log(`⏭️ الإدارة موجودة بالفعل: ${dept.name}`);
     }
   }
   
   await batch.commit();
-  console.log('✅ Departments seeded successfully');
+  console.log('✅ اكتملت تهيئة الإدارات');
 };
 
 /**
  * تهيئة الفروع والمناطق الافتراضية
  */
-const seedBranches = async () => {
+const seedBranches = async (): Promise<void> => {
+  console.log('🚀 بدء تهيئة الفروع والمناطق...');
+  
   const regions = [
     {
       id: 'central',
@@ -409,7 +415,8 @@ const seedBranches = async () => {
   
   const batch = writeBatch(db);
   
-  for (const region of regions) {
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
     const regionRef = doc(db, 'regions', region.id);
     const regionDoc = await getDoc(regionRef);
     if (!regionDoc.exists()) {
@@ -420,17 +427,22 @@ const seedBranches = async () => {
         createdAt: Date.now(),
         updatedAt: Date.now()
       });
+      console.log(`✅ تم إنشاء المنطقة: ${region.name}`);
+    } else {
+      console.log(`⏭️ المنطقة موجودة بالفعل: ${region.name}`);
     }
   }
   
   await batch.commit();
-  console.log('✅ Branches seeded successfully');
+  console.log('✅ اكتملت تهيئة الفروع والمناطق');
 };
 
 /**
  * تهيئة المهام الافتراضية
  */
-const seedTasks = async () => {
+const seedTasks = async (): Promise<void> => {
+  console.log('🚀 بدء تهيئة المهام...');
+  
   const today = new Date().toISOString().split('T')[0];
   const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
   
@@ -484,81 +496,119 @@ const seedTasks = async () => {
       status: 'todo',
       department: 'العلاقات العامة',
       isPublic: true
+    },
+    {
+      title: 'اجتماع مجلس الإدارة',
+      date: tomorrow,
+      time: '16:00',
+      description: 'مناقشة الأداء العام للشركة',
+      priority: 'high',
+      status: 'todo',
+      department: 'الإدارة العليا',
+      isPublic: true
     }
   ];
   
   const batch = writeBatch(db);
   
-  for (const task of tasks) {
-    const taskRef = doc(db, 'tasks', `${task.title}_${Date.now()}`);
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+    const taskId = `${task.title.replace(/\s/g, '_')}_${Date.now()}_${i}`;
+    const taskRef = doc(db, 'tasks', taskId);
     batch.set(taskRef, {
-      ...task,
+      title: task.title,
+      date: task.date,
+      time: task.time,
+      description: task.description,
+      priority: task.priority,
+      status: task.status,
+      department: task.department,
+      isPublic: task.isPublic,
       createdByUid: 'system',
       assigneesUids: [],
       mentionsUids: [],
       attachments: [],
+      comments: [],
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
+    console.log(`✅ تم إنشاء المهمة: ${task.title}`);
   }
   
   await batch.commit();
-  console.log('✅ Tasks seeded successfully');
+  console.log('✅ اكتملت تهيئة المهام');
 };
 
 /**
  * تهيئة البيانات بالكامل
  */
-export const seedDatabase = async () => {
-  console.log('🚀 Starting database seeding...');
+export const seedDatabase = async (): Promise<void> => {
+  console.log('🚀🚀🚀 بدء تهيئة قاعدة البيانات بالكامل...');
+  console.log('=========================================');
   
   try {
-    // تهيئة الإدارات
+    // 1. تهيئة الإدارات
     await seedDepartments();
+    console.log('-----------------------------------------');
     
-    // تهيئة الفروع
+    // 2. تهيئة الفروع
     await seedBranches();
+    console.log('-----------------------------------------');
     
-    // تهيئة المستخدمين
+    // 3. تهيئة المستخدمين
+    console.log('🚀 بدء تهيئة المستخدمين...');
     let successCount = 0;
     let failCount = 0;
     
-    for (const user of SEED_USERS) {
-      console.log(`📝 Processing user: ${user.email}`);
+    for (let i = 0; i < SEED_USERS.length; i++) {
+      const user = SEED_USERS[i];
+      console.log(`📝 [${i + 1}/${SEED_USERS.length}] معالجة المستخدم: ${user.email}`);
       
-      // التحقق من وجود المستخدم
       const exists = await userExistsInAuth(user.email);
       
       if (!exists) {
-        // إنشاء مستخدم جديد
         const uid = await createAuthUser(user.email, user.password, user.name);
         if (uid) {
           const firestoreSuccess = await createFirestoreUser(user, uid);
           if (firestoreSuccess) {
             successCount++;
-            console.log(`✅ User ${user.email} created successfully`);
+            console.log(`✅ تم إنشاء المستخدم بنجاح: ${user.email}`);
           } else {
             failCount++;
-            console.error(`❌ Failed to create Firestore user: ${user.email}`);
+            console.error(`❌ فشل إنشاء المستخدم في Firestore: ${user.email}`);
           }
         } else {
           failCount++;
-          console.error(`❌ Failed to create Auth user: ${user.email}`);
+          console.error(`❌ فشل إنشاء المستخدم في Auth: ${user.email}`);
         }
       } else {
-        console.log(`⏭️ User ${user.email} already exists, skipping...`);
+        console.log(`⏭️ المستخدم موجود بالفعل: ${user.email}`);
         successCount++;
       }
     }
     
-    // تهيئة المهام
-    await seedTasks();
+    console.log(`📊 إحصائيات المستخدمين: نجاح ${successCount}, فشل ${failCount}`);
+    console.log('-----------------------------------------');
     
-    console.log(`✅ Database seeding completed! Success: ${successCount}, Failed: ${failCount}`);
-    toast.success(`تم تهيئة ${successCount} مستخدم بنجاح`);
+    // 4. تهيئة المهام
+    await seedTasks();
+    console.log('-----------------------------------------');
+    
+    console.log('=========================================');
+    console.log(`✅✅✅ اكتملت تهيئة قاعدة البيانات بنجاح!`);
+    console.log(`📊 المستخدمين: ${successCount} نجاح, ${failCount} فشل`);
+    console.log(`📊 الإدارات: 6`);
+    console.log(`📊 الفروع: 5 مناطق`);
+    console.log(`📊 المهام: 6`);
+    
+    if (typeof toast !== 'undefined') {
+      toast.success(`تم تهيئة ${successCount} مستخدم بنجاح`);
+    }
   } catch (error) {
-    console.error('❌ Error seeding database:', error);
-    toast.error('حدث خطأ في تهيئة قاعدة البيانات');
+    console.error('❌❌❌ خطأ في تهيئة قاعدة البيانات:', error);
+    if (typeof toast !== 'undefined') {
+      toast.error('حدث خطأ في تهيئة قاعدة البيانات');
+    }
   }
 };
 
@@ -568,8 +618,10 @@ export const seedDatabase = async () => {
 export const isDatabaseSeeded = async (): Promise<boolean> => {
   try {
     const usersRef = collection(db, 'users');
-    const snapshot = await getDocs(usersRef);
-    return snapshot.size > 0;
+    const querySnapshot = await getDocs(usersRef);
+    const hasUsers = querySnapshot.size > 0;
+    console.log(`📊 قاعدة البيانات ${hasUsers ? 'تحتوي على بيانات' : 'فارغة'}`);
+    return hasUsers;
   } catch (error) {
     console.error('Error checking database seed status:', error);
     return false;
@@ -579,28 +631,78 @@ export const isDatabaseSeeded = async (): Promise<boolean> => {
 /**
  * عرض إحصائيات قاعدة البيانات
  */
-export const getDatabaseStats = async () => {
+export const getDatabaseStats = async (): Promise<{
+  users: number;
+  tasks: number;
+  meetings: number;
+  departments: number;
+  regions: number;
+} | null> => {
   try {
     const usersRef = collection(db, 'users');
     const tasksRef = collection(db, 'tasks');
     const meetingsRef = collection(db, 'meetings');
     const departmentsRef = collection(db, 'departments');
+    const regionsRef = collection(db, 'regions');
     
-    const [usersSnapshot, tasksSnapshot, meetingsSnapshot, departmentsSnapshot] = await Promise.all([
+    const [usersSnapshot, tasksSnapshot, meetingsSnapshot, departmentsSnapshot, regionsSnapshot] = await Promise.all([
       getDocs(usersRef),
       getDocs(tasksRef),
       getDocs(meetingsRef),
-      getDocs(departmentsRef)
+      getDocs(departmentsRef),
+      getDocs(regionsRef)
     ]);
     
-    return {
+    const stats = {
       users: usersSnapshot.size,
       tasks: tasksSnapshot.size,
       meetings: meetingsSnapshot.size,
-      departments: departmentsSnapshot.size
+      departments: departmentsSnapshot.size,
+      regions: regionsSnapshot.size
     };
+    
+    console.log('📊 إحصائيات قاعدة البيانات:', stats);
+    return stats;
   } catch (error) {
     console.error('Error getting database stats:', error);
     return null;
+  }
+};
+
+/**
+ * حذف جميع البيانات من قاعدة البيانات (بحذر)
+ */
+export const clearDatabase = async (): Promise<boolean> => {
+  console.warn('⚠️ تحذير: جاري حذف جميع البيانات من قاعدة البيانات!');
+  
+  const confirmClear = window.confirm('هل أنت متأكد من حذف جميع البيانات؟ هذا الإجراء لا يمكن التراجع عنه!');
+  if (!confirmClear) {
+    console.log('تم إلغاء عملية الحذف');
+    return false;
+  }
+  
+  try {
+    const collections = ['users', 'tasks', 'meetings', 'departments', 'regions', 'notifications', 'messages'];
+    
+    for (let i = 0; i < collections.length; i++) {
+      const collectionName = collections[i];
+      const snapshot = await getDocs(collection(db, collectionName));
+      const batch = writeBatch(db);
+      
+      snapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      
+      await batch.commit();
+      console.log(`✅ تم حذف مجموعة ${collectionName} (${snapshot.size} مستند)`);
+    }
+    
+    console.log('✅ تم حذف جميع البيانات بنجاح');
+    toast.success('تم حذف جميع البيانات');
+    return true;
+  } catch (error) {
+    console.error('❌ خطأ في حذف البيانات:', error);
+    toast.error('حدث خطأ في حذف البيانات');
+    return false;
   }
 };

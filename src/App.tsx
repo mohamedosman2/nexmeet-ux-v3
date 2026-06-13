@@ -1,3 +1,13 @@
+// أضف هذا الاستيراد في بداية App.tsx
+import { seedDatabase } from './services/seedUsers';
+
+// أضف هذا الزر في return (مؤقتاً)
+<button 
+  onClick={() => seedDatabase()}
+  style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 9999, background: '#8B1A1A', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer' }}
+>
+  تهيئة قاعدة البيانات
+</button>
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
